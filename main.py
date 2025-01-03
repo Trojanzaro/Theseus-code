@@ -45,6 +45,30 @@ def turn_sequence(sonar):
         time.sleep(0.2)
 
 ####
+# dithering startup
+def dithering_startup(motors):
+        motors.NORTH(0.1)
+        time.sleep(0.2)
+        motors.SOUTH(0.1)
+        time.sleep(0.2)
+
+        motors.SOUTH(0.1)
+        time.sleep(0.2)
+        motors.NORTH(0.1)
+        time.sleep(0.2)
+
+        motors.STRAFE_LEFT(0.1)
+        time.sleep(0.2)
+        motors.STRAFE_RIGHT(0.1)
+        time.sleep(0.2)
+        
+        motors.STRAFE_RIGHT(0.1)
+        time.sleep(0.2)
+        motors.STRAFE_LEFT(0.1)
+
+        time.sleep(2)
+
+####
 #callback function for terminating code
 def cb_stop_bt(gpio, level, tick):
     print(gpio, level, tick)
@@ -87,24 +111,42 @@ try:
 
         #stg.kernel_ctr()
         #time.sleep(0.5) # ~5cm per step
-        motors.NORTH(0.5)
-        time.sleep(1)
-        motors.SOUTH(0.5)
-        time.sleep(1)
-        motors.DIAGONALY_LEFT_P(1)
-        time.sleep(1)
-        motors.BEND_CLOCK(1)
-        time.sleep(1)
-        motors.BEND_CLOCK_P(1)
-        time.sleep(1)
-        motors.CENTER_CLOCK(1)
-        time.sleep(1)
-        motors.CENTER_CLOCK_P(1)
-        time.sleep(1)
+        
+        ####
+        # STARTING THE ROVER WITH A SMALL INTRI SEQUENSE TO START UP
+        dithering_startup(motors)
+
+        # START MEASURING DISTANCES
+        # START WITH A 90° rotation
+        motors.CLOCK_P(1.45) # Δt = 1.45 sec =~ 90° 
+        time.sleep(1) # wait for one second
+
+        # array for the distances
+        dist = []
+
+        # START TAKING DISTANCE MEASURE MENTS AND APPEND THEM IN THE dist ARRAY
+        n = 90 # 45 steps of 2° rotation for 90° rotation | 90 steps
+        while n > 0:
+            # get a reading and add it to the distance array
+            r = sonar.read()
+            print("D: {}".format(r))
+            dist.append(r)
+
+            # turn rover
+            motors.CLOCK(0.05) # Δt = 5ms =~ 2°
+            time.sleep(0.1)
+
+            # start over
+            n-=1
+
+        print(dist)
+
+
+
 
 
 except KeyboardInterrupt:
-    
     # close pigpio
+    motors.HALT()
     print("STOPPING!")
     pi1.stop()
