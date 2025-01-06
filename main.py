@@ -133,11 +133,12 @@ try:
         dist = []
 
         # START TAKING DISTANCE MEASURE MENTS AND APPEND THEM IN THE dist ARRAY
-        n = 116 # 45 steps of 2° rotation for 90° rotation | 116 steps ~180° rotation
+        n = 125 # 45 steps of 2° rotation for 90° rotation | 116 steps ~180° rotation
         while n > 0:
 
             # GET A READING AND ADD IT TO THE DISTANCE ARRAY
             r = sonar.read()
+            r = (r/2) / 29.1 # normalize duration to cm
             print("D: {}".format(r))
             dist.append(r)
 
@@ -154,7 +155,7 @@ try:
         plt.grid(True)
 
         # Generating the X and Y axis data point
-        theta = np.deg2rad(np.arange(180, 0, -1.5652173913)) # magic number necesary for 116 steps
+        theta = np.deg2rad(np.arange(180, 0, -1.44)) # magic number necesary for 116 steps
 
         # plotting the polar coordinates on the system
         plt.polar(theta, dist, marker='o')
