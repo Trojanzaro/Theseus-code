@@ -1,23 +1,40 @@
 <!DOCTYPE html>
 <html>
     <header>
-        
+        <style>
+            button {
+                padding: 15px 32px;
+                text-align: center;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 25px;
+                font-weight: bold;
+            }
+        </style>
     </header>
     <body>
         <img style="display: block;-webkit-user-select: none;margin: auto;background-color: hsl(0, 0%, 25%);" src="http://192.168.0.48:8081/">
-        <table>
-            <tr>
-                <td></td>
-                <td><button id="up">^</button></td>
-                <td></td>
-            </tr>
-            <tr>
-                <td><button id="left" >&lt;</button></td>
-                <td><button id="down" >v</button></td>
-                <td><button id="right">&gt;</button></td>
-            </tr>
-        </table>
 
+        <div style="text-align: -webkit-center;">
+            <table>
+                <tr>
+                    <td></td>
+                    <td><button id="up">&uArr;</button></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><button id="left" >&lArr;</button></td>
+                    <td><button id="down" >&dArr;</button></td>
+                    <td><button id="right">&rArr;</button></td>
+                </tr>
+                <tr>
+                    <td><button id="clock_p" >&#8634;</button></td>
+                    <td></td>
+                    <td><button id="clock">&#8635;</button></td>
+                </tr>
+            </table>
+        </div>
+        
         <script>
             function north() {
                 const xhttp = new XMLHttpRequest();
@@ -43,6 +60,18 @@
                 xhttp.send();
             }
 
+            function clock() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/clock", true);
+                xhttp.send();
+            }
+
+            function cclock() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/clock_p", true);
+                xhttp.send();
+            }
+
             function halt() {
                 const xhttp = new XMLHttpRequest();
                 xhttp.open("GET", "http://192.168.0.48:5000/halt", true);
@@ -64,6 +93,14 @@
             const br = document.getElementById("right")
             br.addEventListener("mouseup", (ev) => halt())
             br.addEventListener("mousedown", (ev) => right())
+
+            const bc = document.getElementById("clock")
+            bc.addEventListener("mouseup", (ev) => halt())
+            bc.addEventListener("mousedown", (ev) => clock())
+
+            const bcc = document.getElementById("clock_p")
+            bcc.addEventListener("mouseup", (ev) => halt())
+            bcc.addEventListener("mousedown", (ev) => cclock())
 
         </script>
     </body>
