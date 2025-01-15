@@ -5,7 +5,7 @@ class Motors:
     """The control class for Theseus motors"""
 
     """Motor PWM duty dycle """
-    pwm_dc = 170
+    pwm_dc = 255
 
     def __init__(self, pi1, NLL, NLH, NRL, NRH, SLL, SLH, SRL, SRH):
         """The pigpio object for controlling the GPIOS"""
@@ -52,7 +52,7 @@ class Motors:
         self.pi.write(self.SRL, 0)  # SR
         self.pi.write(self.SRH, 0)  # -
 
-    def NORTH(self, dt):
+    def NORTH(self, dt=None):
         # North wheels
         self.pi.set_PWM_dutycycle(self.NLL, self.pwm_dc) # NL
         self.pi.write(self.NLH, 0)               # -
@@ -68,12 +68,13 @@ class Motors:
         self.pi.write(self.SRH, 0)                # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def SOUTH(self, dt):
+    def SOUTH(self, dt=None):
         # North wheels
         self.pi.write(self.NLL, 0)               # NL
         self.pi.set_PWM_dutycycle(self.NLH, self.pwm_dc) # -
@@ -89,12 +90,13 @@ class Motors:
         self.pi.set_PWM_dutycycle(self.SRH, self.pwm_dc)  # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def CLOCK(self, dt):
+    def CLOCK(self, dt=None):
         # North wheels
         self.pi.set_PWM_dutycycle(self.NLL, self.pwm_dc) # NL
         self.pi.write(self.NLH, 0)              # -
@@ -110,12 +112,13 @@ class Motors:
         self.pi.set_PWM_dutycycle(self.SRH, self.pwm_dc) # -
 
         # delay for distance (* .5 sec for ~30 deg)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def CLOCK_P(self,  dt):
+    def CLOCK_P(self,  dt=None):
         # North wheels
         self.pi.write(self.NLL, 0) # NL
         self.pi.set_PWM_dutycycle(self.NLH, self.pwm_dc)              # -
@@ -131,12 +134,13 @@ class Motors:
         self.pi.write(self.SRH, 0) # -
 
         # delay for distance (* .5 sec for ~30 deg)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def STRAFE_RIGHT(self, dt):
+    def STRAFE_RIGHT(self, dt=None):
         # North wheels
         self.pi.set_PWM_dutycycle(self.NLL, self.pwm_dc)   # NL
         self.pi.write(self.NLH, 0)                    # -
@@ -152,12 +156,13 @@ class Motors:
         self.pi.write(self.SRH, 0)                     # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def STRAFE_LEFT(self, dt):
+    def STRAFE_LEFT(self, dt=None):
         # North wheels
         self.pi.write(self.NLL, 0)   # NL
         self.pi.set_PWM_dutycycle(self.NLH, self.pwm_dc)                    # -
@@ -173,12 +178,13 @@ class Motors:
         self.pi.set_PWM_dutycycle(self.SRH, self.pwm_dc)                     # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def DIAGONALY_RIGHT(self, dt):
+    def DIAGONALY_RIGHT(self, dt=None):
         # North wheels
         self.pi.set_PWM_dutycycle(self.NLL, self.pwm_dc) # NL
         self.pi.write(self.NLH, 0)               # -
@@ -194,12 +200,13 @@ class Motors:
         self.pi.write(self.SRH, 0)                # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def DIAGONALY_RIGHT_P(self, dt):
+    def DIAGONALY_RIGHT_P(self, dt=None):
         # North wheels
         self.pi.write(self.NLL, 0) # NL
         self.pi.set_PWM_dutycycle(self.NLH, self.pwm_dc)               # -
@@ -215,12 +222,13 @@ class Motors:
         self.pi.set_PWM_dutycycle(self.SRH, self.pwm_dc)                # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
     
-    def DIAGONALY_LEFT(self, dt):
+    def DIAGONALY_LEFT(self, dt=None):
         # North wheels
         self.pi.write(self.NLL, 0) # NL
         self.pi.write(self.NLH, 0)               # -
@@ -236,12 +244,13 @@ class Motors:
         self.pi.write(self.SRH, 0)                # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def DIAGONALY_LEFT_P(self, dt):
+    def DIAGONALY_LEFT_P(self, dt=None):
         # North wheels
         self.pi.write(self.NLL, 0) # NL
         self.pi.write(self.NLH, 0)               # -
@@ -257,12 +266,13 @@ class Motors:
         self.pi.write(self.SRH, 0)                # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def BEND_CLOCK(self, dt):
+    def BEND_CLOCK(self, dt=None):
         # North wheels
         self.pi.set_PWM_dutycycle(self.NLL, self.pwm_dc) # NL
         self.pi.write(self.NLH, 0)               # -
@@ -278,12 +288,13 @@ class Motors:
         self.pi.write(self.SRH, 0)                # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def BEND_CLOCK_P(self, dt):
+    def BEND_CLOCK_P(self, dt=None):
         # North wheels
         self.pi.write(self.NLL, 0)               # NL
         self.pi.set_PWM_dutycycle(self.NLH, self.pwm_dc) # -
@@ -299,12 +310,13 @@ class Motors:
         self.pi.write(self.SRH, 0)  # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def CENTER_CLOCK(self, dt):
+    def CENTER_CLOCK(self, dt=None):
         # North wheels
         self.pi.set_PWM_dutycycle(self.NLL, self.pwm_dc)   # NL
         self.pi.write(self.NLH, 0)                    # -
@@ -320,12 +332,13 @@ class Motors:
         self.pi.write(self.SRH, 0)                     # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
-    def CENTER_CLOCK_P(self, dt):
+    def CENTER_CLOCK_P(self, dt=None):
         # North wheels
         self.pi.write(self.NLL, 0)   # NL
         self.pi.set_PWM_dutycycle(self.NLH, self.pwm_dc)                    # -
@@ -341,9 +354,10 @@ class Motors:
         self.pi.write(self.SRH, 0)                     # -
 
         # delay for distance (* .5 sec for ~5cm)
-        time.sleep(dt)
+        if dt != None:
+            time.sleep(dt)
 
-        # halt motors
-        self.HALT()
+            # halt motors
+            self.HALT()
 
 

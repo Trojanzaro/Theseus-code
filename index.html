@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+    <header>
+        
+    </header>
+    <body>
+        <img style="display: block;-webkit-user-select: none;margin: auto;background-color: hsl(0, 0%, 25%);" src="http://192.168.0.48:8081/">
+        <table>
+            <tr>
+                <td></td>
+                <td><button id="up">^</button></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td><button id="left" >&lt;</button></td>
+                <td><button id="down" >v</button></td>
+                <td><button id="right">&gt;</button></td>
+            </tr>
+        </table>
+
+        <script>
+            function north() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/north", true);
+                xhttp.send();
+            }
+
+            function south() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/south", true);
+                xhttp.send();
+            }
+
+            function left() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/left", true);
+                xhttp.send();
+            }
+
+            function right() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/right", true);
+                xhttp.send();
+            }
+
+            function halt() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/halt", true);
+                xhttp.send();
+            }
+
+            const bu = document.getElementById("up")
+            bu.addEventListener("mouseup", (ev) => halt())
+            bu.addEventListener("mousedown", (ev) => north())
+
+            const bd = document.getElementById("down")
+            bd.addEventListener("mouseup", (ev) => halt())
+            bd.addEventListener("mousedown", (ev) => south())
+
+            const bl = document.getElementById("left")
+            bl.addEventListener("mouseup", (ev) => halt())
+            bl.addEventListener("mousedown", (ev) => left())
+
+            const br = document.getElementById("right")
+            br.addEventListener("mouseup", (ev) => halt())
+            br.addEventListener("mousedown", (ev) => right())
+
+        </script>
+    </body>
+</html>
