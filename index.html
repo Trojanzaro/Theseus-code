@@ -2,7 +2,7 @@
 <html>
     <header>
         <style>
-            button {
+            .button {
                 padding: 15px 32px;
                 text-align: center;
                 text-decoration: none;
@@ -14,23 +14,26 @@
     </header>
     <body>
         <img style="display: block;-webkit-user-select: none;margin: auto;background-color: hsl(0, 0%, 25%);" src="http://192.168.0.48:8081/">
-
+        <br />
         <div style="text-align: -webkit-center;">
+            <input type="text" id="text2s"> <button onclick="speak()">SPEAK!</button>
+            <br />
+            <br />
             <table>
                 <tr>
                     <td></td>
-                    <td><button id="up">&uArr;</button></td>
+                    <td><button class="button" id="up">&uArr;</button></td>
                     <td></td>
                 </tr>
                 <tr>
-                    <td><button id="left" >&lArr;</button></td>
-                    <td><button id="down" >&dArr;</button></td>
-                    <td><button id="right">&rArr;</button></td>
+                    <td><button class="button" id="left" >&lArr;</button></td>
+                    <td><button class="button" id="down" >&dArr;</button></td>
+                    <td><button class="button" id="right">&rArr;</button></td>
                 </tr>
                 <tr>
-                    <td><button id="clock_p" >&#8634;</button></td>
+                    <td><button class="button" id="clock_p" >&#8634;</button></td>
                     <td></td>
-                    <td><button id="clock">&#8635;</button></td>
+                    <td><button class="button" id="clock">&#8635;</button></td>
                 </tr>
             </table>
         </div>
@@ -75,6 +78,12 @@
             function halt() {
                 const xhttp = new XMLHttpRequest();
                 xhttp.open("GET", "http://192.168.0.48:5000/halt", true);
+                xhttp.send();
+            }
+
+            function speak() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/speak?text="+encodeURIComponent(document.getElementById("text2s").value), true);
                 xhttp.send();
             }
 

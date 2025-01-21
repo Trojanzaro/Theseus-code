@@ -1,6 +1,7 @@
 import pigpio
-from flask import Flask, g
+from flask import Flask, g, request
 import motors_ctr
+from subprocess import call
 
 # setup PIGPIO
 pi1 = pigpio.pi()       # pi1 accesses the local Pi's GPIO
@@ -67,6 +68,20 @@ def clock_p():
 @app.route('/halt')
 def halt():
     get_motors_instance().HALT()
+    return "<h1>hello</h1>"
+
+####
+# ESPEAK URL
+####
+@app.route('/speak')
+def speak():
+    print("YOU SAID: {}".format(request.args.get("text")))
+
+    cmd = ["espeak", "{}".format(request.args.get("text")), "-w", "/home/pi/theseus_wav/temp_say_now.wav"]
+    call(cmd)
+
+    cmd = ["mplayer", "-ao", "alsa:device=bluetooth", "/home/pi/theseus_wav/temp_say_now.wav"]
+    call(cmd)
     return "<h1>hello</h1>"
 ####
 
