@@ -12,7 +12,7 @@
             }
         </style>
     </header>
-    <body>
+    <body  onload="read_speed()">
         <img style="display: block;-webkit-user-select: none;margin: auto;background-color: hsl(0, 0%, 25%);" src="http://192.168.0.48:8081/">
         <br />
         <div style="text-align: -webkit-center;">
@@ -21,10 +21,11 @@
             <br />
             <table border="2">
                 <tr>
-                    <td rowspan="3">Speed:<br /><input id="speed_pwm" type="range" style="writing-mode: vertical-lr;" min="0" max="255" /></td>
+                    <td rowspan="3">Speed:<br /><input id="speed_pwm" type="range" style="writing-mode: vertical-lr;" min="0" max="255" /><br /> <div id="speed_r" /></td>
                     <td></td>
                     <td><button class="button" id="up">&uArr;</button></td>
                     <td></td>
+                    <td rowspan="3">Speed:<br /><div id="speed_d"></td>
                 </tr>
                 <tr>
                     <td><button class="button" id="left" >&lArr;</button></td>
@@ -38,7 +39,7 @@
                 </tr>
             </table>
         </div>
-        
+
         <script>
             function north() {
                 const xhttp = new XMLHttpRequest();
@@ -89,9 +90,40 @@
             }
 
             function change_dc() {
+                document.getElementById("speed_r").innerHTML = document.getElementById("speed_pwm").value
                 const xhttp = new XMLHttpRequest();
                 xhttp.open("GET", "http://192.168.0.48:5000/change_dc?dc="+encodeURIComponent(document.getElementById("speed_pwm").value), true);
                 xhttp.send();
+            }
+
+            function sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
+            async function read_speed() {
+                const xhttp1 = new XMLHttpRequest();
+                const xhttp2 = new XMLHttpRequest();
+
+                while(true) {
+                    let dist1 = 0
+                    let dist2 = 0
+
+                    xhttp1.open("GET", "http://192.168.0.48:5000/get_distance", false);
+                    xhttp2.open("GET", "http://192.168.0.48:5000/get_distance", false);
+
+                    xhttp1.onload = function() {
+                        dist1 = parseInt(this.responseText)
+                    }
+
+                    xhttp2.onload = function() {
+                        dist2 = parseInt(this.responseText)
+                        document.getElementById("speed_d").innerHTML = (dist1 - dist2) / 0.5;
+                    }
+                    xhttp1.send()
+                    await sleep(500)
+                    xhttp2.send()
+                    await sleep(500)
+                }
             }
 
 
@@ -119,10 +151,7 @@
             bcc.addEventListener("mouseup", (ev) => halt())
             bcc.addEventListener("mousedown", (ev) => cclock())
 
-            const bs = document.getElementById("speed_pwm").addEventListener("input", (event) => {
-                change_dc()
-                console.log(event.target.value)
-            });
+            const bs = document.getElementById("speed_pwm").addEventListener("input", (event) => change_dc());
 
         </script>
     </body>

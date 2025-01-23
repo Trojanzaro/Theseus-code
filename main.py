@@ -95,11 +95,6 @@ sonar = sonar_trigger_echo.ranger(pi1, 23, 18)
 # Initialize the motors GPIOs 
 motors = motors_ctr.Motors(pi1, 17, 27, 22, 10, 9, 11, 5, 6)
 
-# Initialize the Stage the robot will move in
-stg = stage.Stage(motors)
-
-stg.print_stage()
-
 ####
 # MAIN LOOP
 ####
@@ -184,6 +179,47 @@ try:
         plt.plot(x1, y1, marker='o')
         plt.savefig("map2.png")
 
+        # np.array([
+        #         [1, -1, -(lx + ly)], 
+        #         [1,  1,  (lx + ly)], 
+        #         [1,  1, -(lx + ly)], 
+        #         [1, -1,  (lx + ly)]
+        #     ]
+        # )
+
+        T = np.array([
+                [1, -1, -(6.1 + 6.2)], 
+                [1,  1, (6.1 + 6.2)], 
+                [1,  1, -(6.1 + 6.2)], 
+                [1, -1, (6.1 + 6.2)]
+            ]
+        )
+        T_P = np.array([
+                [1, 1, 1, 1], 
+                [-1,  1, 1, -1], 
+                [-1/(6.1 + 6.2),  1/(6.1 + 6.2), -1/(6.1 + 6.2), 1/(6.1 + 6.2)]
+            ]
+        )
+        T = np.multiply(1/3.3, T)
+        T_P = np.multiply(3.3/4, T_P)
+        print(T)
+        print(T_P)
+
+        motors.change_dc(64) # 25%
+
+        motors.NORTH()
+        distance1 = (sonar.read()/2) / 29.1
+        time.sleep(0.5)
+        distance2 = (sonar.read()/2) / 29.1
+
+        speed = (distance1 - distance2) / 0.5
+        print("Speed: {}".format(speed))
+
+        if distance2 <= 5.0:
+            break
+    print("STOPPING!")
+    motors.HALT()
+    pi1.stop()
 
 except KeyboardInterrupt:
     # close pigpio

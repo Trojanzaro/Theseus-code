@@ -2,6 +2,7 @@ import pigpio
 from flask import Flask, g, request, current_app
 import motors_ctr
 import subprocess
+import sonar_trigger_echo
 
 # setup PIGPIO
 pi1 = pigpio.pi()       # pi1 accesses the local Pi's GPIO
@@ -24,6 +25,11 @@ def get_motors_instance():
         current_app.config['motors_instance'] = motors_ctr.Motors(pi1, 17, 27, 22, 10, 9, 11, 5, 6)
     return current_app.config['motors_instance']
 
+def get_sonar_instance():
+    if 'sonar_instance' not in current_app.config:
+        current_app.config['sonar_instance'] = sonar_trigger_echo.ranger(pi1, 23, 18)
+    return current_app.config['sonar_instance']
+
 ####
 def create_motors_server():
         app = Flask(__name__)
@@ -37,15 +43,12 @@ def index():
 
 @app.route('/north')
 def north():
-    with app.app_context():
-
-        get_motors_instance().NORTH()
+    get_motors_instance().NORTH()
     return "<h1>hello</h1>"
 
 @app.route('/south')
 def south():
-    with app.app_context():
-        get_motors_instance().SOUTH()
+    get_motors_instance().SOUTH()
     return "<h1>hello</h1>"
 
 @app.route('/left')
@@ -70,15 +73,19 @@ def clock_p():
 
 @app.route('/halt')
 def halt():
-    with app.app_context():
-        get_motors_instance().HALT()
+    get_motors_instance().HALT()
     return "<h1>hello</h1>"
 
 @app.route('/change_dc')
 def change_dc():
-    with app.app_context():
-        get_motors_instance().change_dc(request.args.get("dc"))
+    get_motors_instance().change_dc(request.args.get("dc"))
     return "<h1>hello</h1>"
+
+@app.route('/get_distance')
+def get_distance():
+    distance = (get_sonar_instance().read() / 2) / 29.1
+    return str(distance)
+
 
 ####
 # ESPEAK URL

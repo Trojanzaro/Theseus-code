@@ -41,8 +41,10 @@ class Motors:
 
     # change DutyCycle
     def change_dc(self, dc):
+        # ! V = 7.7 100% DutyCycle -> ~21-22 cm/s
+        # ! V = 7.7 50% DutyCycle -> ~12-13 cm/s
+        # ! V = 7.7 25% DutyCycle -> ~5-6 cm/s
         self.pwm_dc = dc
-        print("NEW PWM: {}".format(self.pwm_dc))
 
     def HALT(self):
         # North wheels
