@@ -1,7 +1,7 @@
 import pigpio
-from flask import Flask, g, request
+from flask import Flask, g, request, current_app
 import motors_ctr
-from subprocess import call
+import subprocess
 
 # setup PIGPIO
 pi1 = pigpio.pi()       # pi1 accesses the local Pi's GPIO
@@ -20,9 +20,9 @@ cb1 = pi1.callback(4, pigpio.EITHER_EDGE, cb_stop_bt)
 # Initialize the motors GPIOs 
 # FLASK GLOBAL OBJECT REQUIRED! in order to store motors_instance in the global namespace ('g')
 def get_motors_instance():
-    if 'mot_ins' not in g:
-        g.mot_ins = motors_ctr.Motors(pi1, 17, 27, 22, 10, 9, 11, 5, 6)
-    return g.mot_ins
+    if 'motors_instance' not in current_app.config:
+        current_app.config['motors_instance'] = motors_ctr.Motors(pi1, 17, 27, 22, 10, 9, 11, 5, 6)
+    return current_app.config['motors_instance']
 
 ####
 def create_motors_server():
@@ -37,12 +37,15 @@ def index():
 
 @app.route('/north')
 def north():
-    get_motors_instance().NORTH()
+    with app.app_context():
+
+        get_motors_instance().NORTH()
     return "<h1>hello</h1>"
 
 @app.route('/south')
 def south():
-    get_motors_instance().SOUTH()
+    with app.app_context():
+        get_motors_instance().SOUTH()
     return "<h1>hello</h1>"
 
 @app.route('/left')
@@ -67,7 +70,14 @@ def clock_p():
 
 @app.route('/halt')
 def halt():
-    get_motors_instance().HALT()
+    with app.app_context():
+        get_motors_instance().HALT()
+    return "<h1>hello</h1>"
+
+@app.route('/change_dc')
+def change_dc():
+    with app.app_context():
+        get_motors_instance().change_dc(request.args.get("dc"))
     return "<h1>hello</h1>"
 
 ####
@@ -78,10 +88,17 @@ def speak():
     print("YOU SAID: {}".format(request.args.get("text")))
 
     cmd = ["espeak", "{}".format(request.args.get("text")), "-w", "/home/pi/theseus_wav/temp_say_now.wav"]
-    call(cmd)
+    subprocess.call(cmd)
 
-    cmd = ["mplayer", "-ao", "alsa:device=bluetooth", "/home/pi/theseus_wav/temp_say_now.wav"]
-    call(cmd)
+    get_motors_instance().CLOCK(1)
+    get_motors_instance().CLOCK_P(1)
+
+    cmd = ["mplayer", "/home/pi/theseus_wav/temp_say_now.wav"]
+    if request.args.get("text") == "do_not_rr": cmd[1] = "/home/pi/theseus_wav/rr.mp3" # !
+    subprocess.call(cmd)
+
+    get_motors_instance().CLOCK_P(1)
+    get_motors_instance().CLOCK(1)
     return "<h1>hello</h1>"
 ####
 

@@ -19,8 +19,9 @@
             <input type="text" id="text2s"> <button onclick="speak()">SPEAK!</button>
             <br />
             <br />
-            <table>
+            <table border="2">
                 <tr>
+                    <td rowspan="3">Speed:<br /><input id="speed_pwm" type="range" style="writing-mode: vertical-lr;" min="0" max="255" /></td>
                     <td></td>
                     <td><button class="button" id="up">&uArr;</button></td>
                     <td></td>
@@ -87,6 +88,13 @@
                 xhttp.send();
             }
 
+            function change_dc() {
+                const xhttp = new XMLHttpRequest();
+                xhttp.open("GET", "http://192.168.0.48:5000/change_dc?dc="+encodeURIComponent(document.getElementById("speed_pwm").value), true);
+                xhttp.send();
+            }
+
+
             const bu = document.getElementById("up")
             bu.addEventListener("mouseup", (ev) => halt())
             bu.addEventListener("mousedown", (ev) => north())
@@ -110,6 +118,11 @@
             const bcc = document.getElementById("clock_p")
             bcc.addEventListener("mouseup", (ev) => halt())
             bcc.addEventListener("mousedown", (ev) => cclock())
+
+            const bs = document.getElementById("speed_pwm").addEventListener("input", (event) => {
+                change_dc()
+                console.log(event.target.value)
+            });
 
         </script>
     </body>

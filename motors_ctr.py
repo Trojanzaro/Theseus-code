@@ -5,7 +5,7 @@ class Motors:
     """The control class for Theseus motors"""
 
     """Motor PWM duty dycle """
-    pwm_dc = 255
+    pwm_dc = 127
 
     def __init__(self, pi1, NLL, NLH, NRL, NRH, SLL, SLH, SRL, SRH):
         """The pigpio object for controlling the GPIOS"""
@@ -38,6 +38,11 @@ class Motors:
         #
         self.pi.set_mode(SRL, pigpio.OUTPUT)
         self.pi.set_mode(SRH, pigpio.OUTPUT)
+
+    # change DutyCycle
+    def change_dc(self, dc):
+        self.pwm_dc = dc
+        print("NEW PWM: {}".format(self.pwm_dc))
 
     def HALT(self):
         # North wheels
