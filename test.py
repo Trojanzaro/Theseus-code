@@ -51,20 +51,21 @@ try:
             [-1/(6.1 + 6.2),  1/(6.1 + 6.2), -1/(6.1 + 6.2), 1/(6.1 + 6.2)]
         ]
     )
-    v = [1.1, 0, 0] # testing forward kinematics: Vx = 1.1, Vy = 0, Ωz = 0 
-    T = np.multiply(1/0.33, T)
-    T = np.multiply(T, v)
+    v = np.array([-12.7, 10, 0]) # testing forward kinematics: Vx = 1.1, Vy = 0, Ωz = 0 
+    
+    #T = np.multiply(1/0.33, T)
+    #T = np.multiply(T, v)
 
-    w1=(1/0.33)*(v[0]-v[1]-(6.1 + 6.2)*T[0][1]) # forward kinematics test
-    w2=(1/0.33)*(v[0]+v[1]+(6.1 + 6.2)*T[1][1])
-    w3=(1/0.33)*(v[0]+v[1]-(6.1 + 6.2)*T[2][1])
-    w4=(1/0.33)*(v[0]-v[1]+(6.1 + 6.2)*T[3][1])
+    w1=(1/3.3)*(v[0]-v[1]-(6.1 + 6.2)*v[2]) # forward kinematics test
+    w2=(1/3.3)*(v[0]+v[1]+(6.1 + 6.2)*v[2])
+    w3=(1/3.3)*(v[0]+v[1]-(6.1 + 6.2)*v[2])
+    w4=(1/3.3)*(v[0]-v[1]+(6.1 + 6.2)*v[2])
 
     #T_P = np.multiply(0.33/4, T_P)
-    print(T, w1,w2,w3,w4)
+    print(T, w1, w2, w3, w4)
     while True:
-        motors.W(w1=w1, w2=w2, w3=w3, w4=w4) # ! NEW FUNCTION FOR ALL MOTORs ANGULAR VELOCITY MOVE
-        
+        #motors.W(w1=w1, w2=w2, w3=w3, w4=w4) # ! NEW FUNCTION FOR ALL MOTORs ANGULAR VELOCITY MOVE
+        motors.W(w1=w1, w2=w2, w3=w3, w4=w4)
         distance1 = (sonar.read()/2) / 29.1
         time.sleep(0.5)
         distance2 = (sonar.read()/2) / 29.1
