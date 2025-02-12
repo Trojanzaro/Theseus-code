@@ -65,13 +65,17 @@ try:
     print(T, w1, w2, w3, w4)
     while True:
         #motors.W(w1=w1, w2=w2, w3=w3, w4=w4) # ! NEW FUNCTION FOR ALL MOTORs ANGULAR VELOCITY MOVE
-        motors.W(w1=w1, w2=w2, w3=w3, w4=w4)
+        #motors.W(w1=5*np.pi/2, w2=0, w3=5*np.pi/2, w4=0)
+        
+        motors.change_dc(64) 
+        motors.NORTH(dt=1)
         distance1 = (sonar.read()/2) / 29.1
-        time.sleep(0.5)
+        #time.sleep(0.5)
         distance2 = (sonar.read()/2) / 29.1
 
         speed = (distance1 - distance2) / 0.5
         print("Speed: {}".format(speed))
+        break
         
 
     print("STOPPING!")

@@ -21,7 +21,7 @@
             <br />
             <table border="2">
                 <tr>
-                    <td rowspan="3">Speed:<br /><input id="speed_pwm" type="range" style="writing-mode: vertical-lr;" min="0" max="255" /><br /> <div id="speed_r" /></td>
+                    <td rowspan="3">Speed:<br /><input id="speed_pwm" type="range" style="writing-mode: vertical-lr;" min="0" max="255" /><br /> <input style="width: 40%;" type="number" id="speed_r" /></td>
                     <td></td>
                     <td><button class="button" id="up">&uArr;</button></td>
                     <td></td>
@@ -90,10 +90,15 @@
             }
 
             function change_dc() {
-                document.getElementById("speed_r").innerHTML = document.getElementById("speed_pwm").value
+                document.getElementById("speed_r").value = document.getElementById("speed_pwm").value
                 const xhttp = new XMLHttpRequest();
                 xhttp.open("GET", "http://192.168.0.48:5000/change_dc?dc="+encodeURIComponent(document.getElementById("speed_pwm").value), true);
                 xhttp.send();
+            }
+
+            function change_ex() {
+                document.getElementById("speed_pwm").value = document.getElementById("speed_r").value
+                change_dc()
             }
 
             function sleep(ms) {
@@ -152,6 +157,7 @@
             bcc.addEventListener("mousedown", (ev) => cclock())
 
             const bs = document.getElementById("speed_pwm").addEventListener("input", (event) => change_dc());
+            const tpwm = document.getElementById("speed_r").addEventListener("change", (event) => change_ex());
 
         </script>
     </body>

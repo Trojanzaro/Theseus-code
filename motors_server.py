@@ -94,18 +94,18 @@ def get_distance():
 def speak():
     print("YOU SAID: {}".format(request.args.get("text")))
 
-    cmd = ["espeak", "{}".format(request.args.get("text")), "-w", "/home/pi/theseus_wav/temp_say_now.wav"]
+    cmd = ["espeak", "{}".format(request.args.get("text")), "-g", "10", "-v", "el", "-a", "200" "-w", "/home/pi/theseus_wav/temp_say_now.wav"]
     subprocess.call(cmd)
 
-    get_motors_instance().CLOCK(1)
-    get_motors_instance().CLOCK_P(1)
+    #get_motors_instance().CLOCK(1)
+    get_motors_instance().CLOCK_P(0.5)
 
     cmd = ["mplayer", "/home/pi/theseus_wav/temp_say_now.wav"]
     if request.args.get("text") == "do_not_rr": cmd[1] = "/home/pi/theseus_wav/rr.mp3" # !
-    subprocess.call(cmd)
+    subprocess.Popen(cmd)
 
-    get_motors_instance().CLOCK_P(1)
-    get_motors_instance().CLOCK(1)
+    #get_motors_instance().CLOCK_P(1)
+    #get_motors_instance().CLOCK(1)
     return "<h1>hello</h1>"
 ####
 
