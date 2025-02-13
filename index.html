@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html>
     <header>
+        <script>
+            const URL_ENDPOINT = "http://192.168.1.82:5000/"
+        </script>
         <style>
             .button {
                 padding: 15px 32px;
@@ -43,56 +46,56 @@
         <script>
             function north() {
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/north", true);
+                xhttp.open("GET", URL_ENDPOINT + "north", true);
                 xhttp.send();
             }
 
             function south() {
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/south", true);
+                xhttp.open("GET", URL_ENDPOINT + "south", true);
                 xhttp.send();
             }
 
             function left() {
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/left", true);
+                xhttp.open("GET", URL_ENDPOINT + "left", true);
                 xhttp.send();
             }
 
             function right() {
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/right", true);
+                xhttp.open("GET", URL_ENDPOINT + "right", true);
                 xhttp.send();
             }
 
             function clock() {
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/clock", true);
+                xhttp.open("GET", URL_ENDPOINT + "clock", true);
                 xhttp.send();
             }
 
             function cclock() {
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/clock_p", true);
+                xhttp.open("GET", URL_ENDPOINT + "clock_p", true);
                 xhttp.send();
             }
 
             function halt() {
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/halt", true);
+                xhttp.open("GET", URL_ENDPOINT + "halt", true);
                 xhttp.send();
             }
 
             function speak() {
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/speak?text="+encodeURIComponent(document.getElementById("text2s").value), true);
+                xhttp.open("GET", URL_ENDPOINT + "speak?text="+encodeURIComponent(document.getElementById("text2s").value), true);
                 xhttp.send();
             }
 
             function change_dc() {
                 document.getElementById("speed_r").value = document.getElementById("speed_pwm").value
                 const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", "http://192.168.0.48:5000/change_dc?dc="+encodeURIComponent(document.getElementById("speed_pwm").value), true);
+                xhttp.open("GET", URL_ENDPOINT + "change_dc?dc="+encodeURIComponent(document.getElementById("speed_pwm").value), true);
                 xhttp.send();
             }
 
@@ -113,8 +116,8 @@
                     let dist1 = 0
                     let dist2 = 0
 
-                    xhttp1.open("GET", "http://192.168.0.48:5000/get_distance", false);
-                    xhttp2.open("GET", "http://192.168.0.48:5000/get_distance", false);
+                    xhttp1.open("GET", URL_ENDPOINT + "get_distance", false);
+                    xhttp2.open("GET", URL_ENDPOINT + "get_distance", false);
 
                     xhttp1.onload = function() {
                         dist1 = parseInt(this.responseText)
