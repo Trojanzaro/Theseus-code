@@ -2,7 +2,7 @@
 <html>
     <header>
         <script>
-            const URL_ENDPOINT = "http://192.168.1.82:5000/"
+            const URL_ENDPOINT = "http://10.3.141.1:5000/"
         </script>
         <style>
             .button {
@@ -136,28 +136,40 @@
 
 
             const bu = document.getElementById("up")
+            bu.addEventListener("touchend", (ev) => halt())
             bu.addEventListener("mouseup", (ev) => halt())
             bu.addEventListener("mousedown", (ev) => north())
+            bu.addEventListener("touchstart", (ev) => north())
 
             const bd = document.getElementById("down")
+            bd.addEventListener("touchend", (ev) => halt())
             bd.addEventListener("mouseup", (ev) => halt())
             bd.addEventListener("mousedown", (ev) => south())
+            bd.addEventListener("touchstart", (ev) => south())
 
             const bl = document.getElementById("left")
+            bl.addEventListener("touchend", (ev) => halt())
             bl.addEventListener("mouseup", (ev) => halt())
             bl.addEventListener("mousedown", (ev) => left())
+            bl.addEventListener("touchstart", (ev) => left())
 
             const br = document.getElementById("right")
+            br.addEventListener("touchend", (ev) => halt())
             br.addEventListener("mouseup", (ev) => halt())
             br.addEventListener("mousedown", (ev) => right())
+            br.addEventListener("touchstart", (ev) => right())
 
             const bc = document.getElementById("clock")
+            bc.addEventListener("touchend", (ev) => halt())
             bc.addEventListener("mouseup", (ev) => halt())
             bc.addEventListener("mousedown", (ev) => clock())
+            bc.addEventListener("touchstart", (ev) => clock())
 
             const bcc = document.getElementById("clock_p")
+            bcc.addEventListener("touchend", (ev) => halt())
             bcc.addEventListener("mouseup", (ev) => halt())
             bcc.addEventListener("mousedown", (ev) => cclock())
+            bcc.addEventListener("touchstart", (ev) => cclock())
 
             const bs = document.getElementById("speed_pwm").addEventListener("input", (event) => change_dc());
             const tpwm = document.getElementById("speed_r").addEventListener("change", (event) => change_ex());
