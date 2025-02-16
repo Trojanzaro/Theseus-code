@@ -7,8 +7,9 @@ class Motors:
 
     """Motor PWM duty dycle """
     pwm_dc = 127
+    pos =0
 
-    def __init__(self, pi1, NLL, NLH, NRL, NRH, SLL, SLH, SRL, SRH):
+    def __init__(self, pi1, NLL, NLH, NRL, NRH, SLL, SLH, SRL, SRH, NLA, NLB):
         """The pigpio object for controlling the GPIOS"""
         self.pi = pi1
 
@@ -28,7 +29,18 @@ class Motors:
         self.SRL = SRL
         self.SRH = SRH
 
+        """MOTOR ENC PHASES"""
+
+        """North Left Motor Phase"""
+        self.NLA = NLA
+        self.NLB = NLB
+        self.levA = 0
+        self.levB = 0
+
+        self.lastGpio = None
+
         # setup all pins
+        # MOTOR Vs/GND/PWM
         self.pi.set_mode(NLL, pigpio.OUTPUT) # GPIO 17, 27, 22,  10, 9, 11,  5, 6  as output
         self.pi.set_mode(NLH, pigpio.OUTPUT)
         self.pi.set_mode(NRL, pigpio.OUTPUT)
@@ -40,6 +52,36 @@ class Motors:
         self.pi.set_mode(SRL, pigpio.OUTPUT)
         self.pi.set_mode(SRH, pigpio.OUTPUT)
 
+        #MOTORS ENCODERS PHASES
+        self.pi.set_mode(NLA, pigpio.INPUT)
+        self.pi.set_mode(NLB, pigpio.INPUT)
+        self.pi.set_pull_up_down(NLA, pigpio.PUD_UP)
+        self.pi.set_pull_up_down(NLB, pigpio.PUD_UP)
+        self.cbA = self.pi.callback(NLA, pigpio.EITHER_EDGE, self._pulseA)
+        self.cbB = self.pi.callback(NLB, pigpio.EITHER_EDGE, self._pulseA)
+
+    def callback(self, way):
+        self.pos += way
+        print("pos={}".format(self.pos))
+
+    def _pulseA(self, gpio, level, tick):
+        #print(gpio, level, tick)
+        if gpio == self.NLA:
+            self.levA = level
+        else:
+            self.levB = level
+
+        if gpio != self.lastGpio: # debounce
+            self.lastGpio = gpio
+
+            if gpio == self.NLA and level == 1:
+                if self.levB == 1:
+                    self.callback(1)
+            elif gpio == self.NLB and level == 1:
+                if self.levA == 1:
+                    self.callback(-1)
+
+
     # change DutyCycle
     def change_dc(self, dc):
         # ! V = 7.7 100% DutyCycle -> ~21-22 cm/s
@@ -50,7 +92,6 @@ class Motors:
     # return PWM for rad/s
     def rads2pwm(self, rads=None):
         #pwm_dc = (rads + 49.91) / 2.096 # ! Magic numbers come from the statistical analysis of the motors PWM to rad/s, linear regresion f(x) = 0.034x - 0.5
-        print(np.ceil(np.interp(rads, [0, (np.pi*5)/2], [0, 255])))
         return np.ceil(np.interp(rads, [0, (np.pi*5)/2], [0, 255])) if rads != None else self.pwm_dc
 
 
