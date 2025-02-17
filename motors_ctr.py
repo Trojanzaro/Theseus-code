@@ -98,6 +98,82 @@ class Motors:
         pwm = 64
         return self.pwm_dc
 
+    def get_rads(self, i=0, th=None):
+        if th!= None:
+            return th*0.017453
+        if i == 0:
+            return (360 / self.ENC_PPR * self.encoderNL.steps)*0.017453
+        if i == 1:
+            pass #return 360 / self.ENC_PPR * self.encoderNR.steps
+        if i == 2:
+            pass #return 360 / self.ENC_PPR * self.encoderSL.steps # return the angle the ith wheel is at by calculating (360 / encoders_pulses_per_revolution * encoder_steps)
+        if i == 3:
+            pass #return 360 / self.ENC_PPR * self.encoderSR.steps
+
+    def get_degs(self, i=0, th=None):
+        if th!= None:
+            return th/0.017453
+        return self.get_rads(i)/0.017453
+    
+    def get_speed(self, i=0):
+        tsample = 0.02
+        distance1 = self.get_rads(i)
+        time.sleep(tsample)
+        distance2 = self.get_rads(i)
+        return (distance2-distance1)/tsample
+
+    def W(self, dth=None, w1=None, w2=None, w3=None, w4=None):
+        # North wheels
+        if w1 > 0:
+            self.pi.set_PWM_dutycycle(self.NLL, self.rads2pwm(w1)) # NL
+            self.pi.write(self.NLH, 0)               # -
+        elif w1 < 0:
+            
+            self.pi.write(self.NLL, 0)               # NL
+            self.pi.set_PWM_dutycycle(self.NLH, self.rads2pwm(w1*(-1))) # -
+        else:
+            self.pi.write(self.NLH, 0) # -
+            self.pi.write(self.NLL, 0)  
+
+        if w2 > 0:
+            self.pi.set_PWM_dutycycle(self.NRL, self.rads2pwm(w2)) # NR
+            self.pi.write(self.NRH, 0)               # -
+        elif w2 < 0:
+            self.pi.write(self.NRL, 0)               # NR
+            self.pi.set_PWM_dutycycle(self.NRH, self.rads2pwm(w2*(-1))) # - 
+        else:
+            self.pi.write(self.NRL, 0)
+            self.pi.write(self.NRH, 0) # - 
+
+
+        # South wheels
+        if w3 > 0:
+            self.pi.set_PWM_dutycycle(self.SLL, self.rads2pwm(w3))  # SL
+            self.pi.write(self.SLH, 0)
+        elif w3 < 0:
+            self.pi.write(self.SLL, 0)                # SL
+            self.pi.set_PWM_dutycycle(self.SLH, self.rads2pwm(w3*(-1))) # -
+        else:
+            self.pi.write(self.SLL, 0)                # SL
+            self.pi.write(self.SLH, 0) # -
+
+        if w4 > 0:
+            self.pi.set_PWM_dutycycle(self.SRL, self.rads2pwm(w4))  # SR
+            self.pi.write(self.SRH, 0)                # -
+        elif w4 < 0:
+            self.pi.write(self.SRL, 0)                 # SR
+            self.pi.set_PWM_dutycycle(self.SRH, self.rads2pwm(w4*(-1))) # -
+        else:
+            self.pi.write(self.SRL, 0)                 # SR
+            self.pi.write(self.SRH, 0)                # -
+
+        # delay for distance (* .5 sec for ~5cm)
+        if dth != None:
+            time.sleep(dth)
+
+            # halt motors
+            self.HALT()
+
 
     def HALT(self):
         # North wheels
@@ -420,72 +496,3 @@ class Motors:
             # halt motors
             self.HALT()
 
-    def get_rads(self, i=0, th=None):
-        if th!= None:
-            return th*0.017453
-        if i == 0:
-            return (360 / self.ENC_PPR * self.encoderNL.steps)*0.017453
-        if i == 1:
-            pass #return 360 / self.ENC_PPR * self.encoderNR.steps
-        if i == 2:
-            pass #return 360 / self.ENC_PPR * self.encoderSL.steps # return the angle the ith wheel is at by calculating (360 / encoders_pulses_per_revolution * encoder_steps)
-        if i == 3:
-            pass #return 360 / self.ENC_PPR * self.encoderSR.steps
-
-    def get_degs(self, i=0, th=None):
-        if th!= None:
-            return th/0.017453
-        return self.get_rads(i)/0.017453
-        
-
-    def W(self, dth=None, w1=None, w2=None, w3=None, w4=None):
-        # North wheels
-        if w1 > 0:
-            self.pi.set_PWM_dutycycle(self.NLL, self.rads2pwm(w1)) # NL
-            self.pi.write(self.NLH, 0)               # -
-        elif w1 < 0:
-            
-            self.pi.write(self.NLL, 0)               # NL
-            self.pi.set_PWM_dutycycle(self.NLH, self.rads2pwm(w1*(-1))) # -
-        else:
-            self.pi.write(self.NLH, 0) # -
-            self.pi.write(self.NLL, 0)  
-
-        if w2 > 0:
-            self.pi.set_PWM_dutycycle(self.NRL, self.rads2pwm(w2)) # NR
-            self.pi.write(self.NRH, 0)               # -
-        elif w2 < 0:
-            self.pi.write(self.NRL, 0)               # NR
-            self.pi.set_PWM_dutycycle(self.NRH, self.rads2pwm(w2*(-1))) # - 
-        else:
-            self.pi.write(self.NRL, 0)
-            self.pi.write(self.NRH, 0) # - 
-
-
-        # South wheels
-        if w3 > 0:
-            self.pi.set_PWM_dutycycle(self.SLL, self.rads2pwm(w3))  # SL
-            self.pi.write(self.SLH, 0)
-        elif w3 < 0:
-            self.pi.write(self.SLL, 0)                # SL
-            self.pi.set_PWM_dutycycle(self.SLH, self.rads2pwm(w3*(-1))) # -
-        else:
-            self.pi.write(self.SLL, 0)                # SL
-            self.pi.write(self.SLH, 0) # -
-
-        if w4 > 0:
-            self.pi.set_PWM_dutycycle(self.SRL, self.rads2pwm(w4))  # SR
-            self.pi.write(self.SRH, 0)                # -
-        elif w4 < 0:
-            self.pi.write(self.SRL, 0)                 # SR
-            self.pi.set_PWM_dutycycle(self.SRH, self.rads2pwm(w4*(-1))) # -
-        else:
-            self.pi.write(self.SRL, 0)                 # SR
-            self.pi.write(self.SRH, 0)                # -
-
-        # delay for distance (* .5 sec for ~5cm)
-        if dth != None:
-            time.sleep(dth)
-
-            # halt motors
-            self.HALT()

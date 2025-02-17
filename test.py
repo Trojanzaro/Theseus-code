@@ -74,12 +74,15 @@ try:
     tsample = 0.02  # Sampling period for code execution (s)
 
     # feedback loop testing params
-    target_w = np.pi # target value for angular velocity to be kept as reference
-    target_pwm = 64  # starting value for PWM to be increaced/decreased
+    target_w = 2*np.pi # target value for angular velocity to be kept as reference
+    target_pwm = 127  # starting value for PWM to be increaced/decreased
+
+    t = []
+    v = []
 
     # Execution loop that displays the current
     # angular position of the encoder shaft
-    while True:
+    while motors.encoderNL.steps < 11879:
 
         # DUMB FEEDBACK LOOP A)
         # set target motors angular velocity to target
@@ -87,25 +90,32 @@ try:
         motors.W(w1=target_w, w2=0 ,w3=target_w, w4=0)
 
         # Pausing for `tsample` to give CPU time to process encoder signal
-        ang1 = motors.get_rads(0)
-        time.sleep(tsample)
-        ang2 = motors.get_rads(0)
+        # ang1 = motors.get_rads(0)
+        # time.sleep(tsample)
+        # ang2 = motors.get_rads(0)
 
-        # DUMB FEEDBACK LOOP B)
-        # angular velocity calculation from actual values of motor encoders
-        ang_v = (ang2-ang1)/tsample
+        # # DUMB FEEDBACK LOOP B)
+        # # angular velocity calculation from actual values of motor encoders
+        # ang_v = (ang2-ang1)/tsample
 
         # Printing angular information
-        print("Angle = {:0.0f} deg".format(motors.get_degs(0)))
-        print("rads = {} rads/s Deg =  {}".format(ang_v, motors.get_degs(th=ang_v)))
+        speed_w = motors.get_speed(0)
+        print("steps = {}\nAngle = {:0.0f} deg".format(motors.encoderNL.steps, motors.get_degs(0)))
+        print("rads = {} rads/s Deg =  {}".format(speed_w, motors.get_degs(th=speed_w)))
 
         # DUMB FEEDBACK LOOP C)
         # check actual measured speed and keep as close to it
-        if ang_v < target_w:
+        if speed_w < target_w:
             target_pwm += 1
         else:
             target_pwm -= 1
-            
+        t.append(motors.encoderNL.steps)
+        v.append(motors.get_speed(0))
+
+    with open('eggs.csv', 'a', newline='') as csvfile:
+        for i in range(0, len(t)):
+            spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v'])
+            spamwriter.writerow({'t': t[i], 'v': v[i]})
     print('Done.')
     # Releasing GPIO pins
 
@@ -114,6 +124,10 @@ try:
     pi1.stop()
 
 except KeyboardInterrupt:
+    with open('eggs.csv', 'a', newline='') as csvfile:
+        spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v'])
+        spamwriter.writerow({'t': motors.encoderNL.steps, 'v': motors.get_speed(0)})
+
     # close pigpio
     motors.HALT()
     print("STOPPING!")
