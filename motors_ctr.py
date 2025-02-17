@@ -21,12 +21,17 @@ class Motors:
     encoderSL = None
     encoderSR = None
 
+    """Encoder steps"""
+    sEncoderNL = 0
+    sEncoderNR = 0
+    sEncoderSL = 0
+    sEncoderSR = 0
+
     # Variable for RPM measuerment
     rpm_right = 0.0
     
     # Variable for angular velocity measurement
-    ang_velocity_right = 0.0
-    ang_velocity_right_deg = 0.0
+    ang_velocity_NL = 0.0
     
     # CONSTANTS FOR CALCULATIONS
     rpm_to_radians = 0.10471975512
@@ -70,6 +75,7 @@ class Motors:
         #
         self.pi.set_mode(SRL, pigpio.OUTPUT)
         self.pi.set_mode(SRH, pigpio.OUTPUT)
+    
 
         #MOTORS ENCODERS PHASES
         #MOTOR ENCODERS 
@@ -87,8 +93,11 @@ class Motors:
 
     # return PWM for rad/s
     def rads2pwm(self, rads=None):
-        #pwm_dc = (rads + 49.91) / 2.096 # ! Magic numbers come from the statistical analysis of the motors PWM to rad/s, linear regresion f(x) = 0.034x - 0.5
-        return np.ceil(np.interp(rads, [-1.0, 0.0, 1.0], [0, 127, 255])) if rads != None else self.pwm_dc
+        # try to keep the pwm close to the rad/s that we want
+        # TODO: Implement
+        pwm = 64
+        return self.pwm_dc
+
 
     def HALT(self):
         # North wheels
@@ -411,9 +420,11 @@ class Motors:
             # halt motors
             self.HALT()
 
-    def get_angle(self, i=0):
+    def get_rads(self, i=0, th=None):
+        if th!= None:
+            return th*0.017453
         if i == 0:
-            return 360 / self.ENC_PPR * self.encoderNL.steps
+            return (360 / self.ENC_PPR * self.encoderNL.steps)*0.017453
         if i == 1:
             pass #return 360 / self.ENC_PPR * self.encoderNR.steps
         if i == 2:
@@ -421,6 +432,11 @@ class Motors:
         if i == 3:
             pass #return 360 / self.ENC_PPR * self.encoderSR.steps
 
+    def get_degs(self, i=0, th=None):
+        if th!= None:
+            return th/0.017453
+        return self.get_rads(i)/0.017453
+        
 
     def W(self, dth=None, w1=None, w2=None, w3=None, w4=None):
         # North wheels
@@ -428,6 +444,7 @@ class Motors:
             self.pi.set_PWM_dutycycle(self.NLL, self.rads2pwm(w1)) # NL
             self.pi.write(self.NLH, 0)               # -
         elif w1 < 0:
+            
             self.pi.write(self.NLL, 0)               # NL
             self.pi.set_PWM_dutycycle(self.NLH, self.rads2pwm(w1*(-1))) # -
         else:
