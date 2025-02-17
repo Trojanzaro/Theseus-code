@@ -1,6 +1,7 @@
 import time
 import pigpio 
 import numpy as np
+import csv
 
 import motors_ctr
 import sonar_trigger_echo
@@ -21,7 +22,7 @@ def cb_stop_bt(gpio, level, tick):
 cb1 = pi1.callback(4, pigpio.EITHER_EDGE, cb_stop_bt)
 
 # Initialize the motors GPIOs 
-motors = motors_ctr.Motors(pi1, 17, 27, 22, 10, 9, 11, 5, 6)
+motors = motors_ctr.Motors(pi1, 17, 27, 22, 10, 9, 11, 5, 6, 12, 16)
 
 # setup HC-SR04 ultranosic sensor
 sonar = sonar_trigger_echo.ranger(pi1, 23, 18)
@@ -63,16 +64,50 @@ try:
 
     #T_P = np.multiply(0.33/4, T_P)
     print(T, w1, w2, w3, w4)
-    while True:
-        #motors.W(w1=w1, w2=w2, w3=w3, w4=w4) # ! NEW FUNCTION FOR ALL MOTORs ANGULAR VELOCITY MOVE
-        motors.W(w1=w1, w2=w2, w3=w3, w4=w4)
-        distance1 = (sonar.read()/2) / 29.1
-        time.sleep(0.5)
-        distance2 = (sonar.read()/2) / 29.1
+    motors.change_dc(64)
+    motors.HALT()
 
-        speed = (distance1 - distance2) / 0.5
-        print("Speed: {}".format(speed))
-        
+    # Assigning parameter values
+    # Pulses Per Revolution of the encoder, 
+    # calculated by counting the pulses each inerupt the hall effect sensors make 
+    ppr = 543 
+    tsample = 0.02  # Sampling period for code execution (s)
+
+    # feedback loop testing params
+    target_w = np.pi # target value for angular velocity to be kept as reference
+    target_pwm = 64  # starting value for PWM to be increaced/decreased
+
+    # Execution loop that displays the current
+    # angular position of the encoder shaft
+    while True:
+
+        # DUMB FEEDBACK LOOP A)
+        # set target motors angular velocity to target
+        motors.change_dc(target_pwm)
+        motors.W(w1=target_w, w2=0 ,w3=target_w, w4=0)
+
+        # Pausing for `tsample` to give CPU time to process encoder signal
+        ang1 = motors.get_rads(0)
+        time.sleep(tsample)
+        ang2 = motors.get_rads(0)
+
+        # DUMB FEEDBACK LOOP B)
+        # angular velocity calculation from actual values of motor encoders
+        ang_v = (ang2-ang1)/tsample
+
+        # Printing angular information
+        print("Angle = {:0.0f} deg".format(motors.get_degs(0)))
+        print("rads = {} rads/s Deg =  {}".format(ang_v, motors.get_degs(th=ang_v)))
+
+        # DUMB FEEDBACK LOOP C)
+        # check actual measured speed and keep as close to it
+        if ang_v < target_w:
+            target_pwm += 1
+        else:
+            target_pwm -= 1
+            
+    print('Done.')
+    # Releasing GPIO pins
 
     print("STOPPING!")
     motors.HALT()
