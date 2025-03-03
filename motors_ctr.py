@@ -80,9 +80,9 @@ class Motors:
         #MOTORS ENCODERS PHASES
         #MOTOR ENCODERS 
         self.encoderNL = RotaryEncoder(NLA, NLB, max_steps=0)
-        #self.encoderNR = RotaryEncoder(NRA, NRB, max_steps=0)
-        #self.encoderSL = RotaryEncoder(SLA, SLB, max_steps=0)
-        #self.encoderSR = RotaryEncoder(SRA, SRB, max_steps=0)
+        self.encoderNR = RotaryEncoder(NRA, NRB, max_steps=0)
+        self.encoderSL = RotaryEncoder(SLA, SLB, max_steps=0)
+        self.encoderSR = RotaryEncoder(SRA, SRB, max_steps=0)
 
     # change DutyCycle
     def change_dc(self, dc):
@@ -104,11 +104,11 @@ class Motors:
         if i == 0:
             return (360 / self.ENC_PPR * self.encoderNL.steps)*0.017453
         if i == 1:
-            pass #return 360 / self.ENC_PPR * self.encoderNR.steps
+            return (360 / self.ENC_PPR * self.encoderNR.steps)*0.017453
         if i == 2:
-            pass #return 360 / self.ENC_PPR * self.encoderSL.steps # return the angle the ith wheel is at by calculating (360 / encoders_pulses_per_revolution * encoder_steps)
+            return (360 / self.ENC_PPR * self.encoderSL.steps)*0.017453
         if i == 3:
-            pass #return 360 / self.ENC_PPR * self.encoderSR.steps
+            return (360 / self.ENC_PPR * self.encoderSR.steps)*0.017453
 
     def get_degs(self, i=0, th=None):
         if th!= None:
@@ -116,7 +116,7 @@ class Motors:
         return self.get_rads(i)/0.017453
     
     def get_speed(self, i=0):
-        tsample = 0.02
+        tsample = 0.01
         distance1 = self.get_rads(i)
         time.sleep(tsample)
         distance2 = self.get_rads(i)
