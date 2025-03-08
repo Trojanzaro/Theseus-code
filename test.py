@@ -24,8 +24,8 @@ cb1 = pi1.callback(4, pigpio.EITHER_EDGE, cb_stop_bt)
 
 # Initialize the motors GPIOs 
 motors = motors_ctr.Motors(pi1, 
-                            17, 27, 22, 10, # North Motors
-                            9, 11, 5, 6,    # South Motors 
+                            22, 10, 17, 27, # North Motors
+                            5, 6, 9, 11,     # South Motors 
                             21, 20, 16, 12, 1, 7, 8, 25)         # Encoders
 
 # setup HC-SR04 ultranosic sensor
@@ -74,49 +74,56 @@ try:
 
     t = []
     v = []
-    # feedback loop testing params
-    target_w = 2*np.pi # target value for angular velocity to be kept as reference
-    target_pwm = 127  # starting value for PWM to be increaced/decreased
 
     # PID CONTROLLER SETUP
-    setpoint = 2*np.pi  # Desired temperature
-    pid = PID.PIDController(Kp=1.0, Ki=0.1, Kd=0.05, setpoint=setpoint)
-    process_variable = np.pi
+    setpoint = np.pi  # Desired speed in rads/s
+
+    pid_nl = PID.PIDController(Kp=5.5, Ki=0.82, Kd=0.85, setpoint=setpoint)
+    pid_nr = PID.PIDController(Kp=5.5, Ki=0.82, Kd=0.85, setpoint=setpoint)
+    pid_sl = PID.PIDController(Kp=5.5, Ki=0.82, Kd=0.85, setpoint=setpoint)
+    pid_sr = PID.PIDController(Kp=5.5, Ki=0.82, Kd=0.85, setpoint=setpoint)
+    
+    process_variable_nl = 2*np.pi
+    process_variable_nr = 2*np.pi
+    process_variable_sl = 2*np.pi
+    process_variable_sr = 2*np.pi
+
     dt = 0.02
     # Execution main loop that displays the current
     # angular position of the encoder shaft, and other velocity info
-    while motors.encoderNL.steps < 10000:
+    b = time.time()
+    while motors.encoderNL.steps < 5000:
 
-        # DUMB FEEDBACK LOOP A)
+        # PID FEEDBACK LOOP A)
         # set target motors angular velocity to target
-        #motors.change_dc(target_pwm) # change duty cycle 
-        motors.W(w1=process_variable, w2=process_variable ,w3=process_variable, w4=process_variable)
+        #motors.W(w1=process_variable_nl, w2=process_variable_nr, w3=process_variable_sl, w4=process_variable_sr)
+        motors.change_dc(127)
+        #motors.NORTH()
+        
+        # PID FEEDBACK LOOP B)
+        # compute error
+        control_output_nl = pid_nl.compute(process_variable_nl, dt)
+        control_output_nr = pid_nr.compute(process_variable_nr, dt)
+        control_output_sl = pid_sl.compute(process_variable_sl, dt)
+        control_output_sr = pid_sr.compute(process_variable_sr, dt)
 
-        # PID FEEDBACK
-        control_output = pid.compute(process_variable, dt)
-        process_variable += control_output * dt - 0.1 * (process_variable - np.pi) * dt  # Heat loss
-
-        # DUMB FEEDBACK LOOP B)
-        speed_w = motors.get_speed(0) # angular_velocity = (ang2 - ang1)/tsample
-        print(process_variable)
-
-        # DUMB FEEDBACK LOOP C)
-        # check actual measured speed and keep as close to it as we can
-        if speed_w < target_w:
-            target_pwm += 1
-        else:
-            target_pwm -= 1
+        # add to cumulative process value 
+        process_variable_nl += control_output_nl * dt
+        process_variable_nr += control_output_nr * dt
+        process_variable_sl += control_output_sl * dt
+        process_variable_sr += control_output_sr * dt
 
         #print("steps = {}\nAngle = {:0.0f} deg".format(motors.encoderNL.steps, motors.get_degs(0)))
         print("NL: rads = {} rads/s Deg =  {}".format(motors.get_speed(0), motors.get_degs(i=0)))
-        print("NR: rads = {} rads/s Deg =  {}".format(motors.get_speed(1), motors.get_degs(i=1)))
-        print("SL: rads = {} rads/s Deg =  {}".format(motors.get_speed(2), motors.get_degs(i=2)))
-        print("SR: rads = {} rads/s Deg =  {}".format(motors.get_speed(3), motors.get_degs(i=3)))
+        print("NL: {}".format(motors.encoderNL.value))
+        # print("NR: rads = {} rads/s Deg =  {}".format(motors.get_speed(1), motors.get_degs(i=1)))
+        # print("SL: rads = {} rads/s Deg =  {}".format(motors.get_speed(2), motors.get_degs(i=2)))
+        # print("SR: rads = {} rads/s Deg =  {}".format(motors.get_speed(3), motors.get_degs(i=3)))
 
-        t.append(motors.encoderNL.steps)
+        t.append(time.time() - b)
         v.append(motors.get_speed(0))
 
-    with open('eggs.csv', 'a', newline='') as csvfile:
+    with open('eggs.csv', 'w', newline='') as csvfile:
         for i in range(0, len(t)):
             spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v'])
             spamwriter.writerow({'t': t[i], 'v': v[i]})
@@ -128,7 +135,7 @@ try:
     pi1.stop()
 
 except KeyboardInterrupt:
-    with open('eggs.csv', 'a', newline='') as csvfile:
+    with open('eggs.csv', 'w', newline='') as csvfile:
         spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v'])
         spamwriter.writerow({'t': motors.encoderNL.steps, 'v': motors.get_speed(0)})
 

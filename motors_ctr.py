@@ -13,7 +13,7 @@ class Motors:
     wheel_pulse_count = 0
 
     """ Motor encoder output pulses per 360 degree revolution (measured manually) ppr or Pulses Per Revolution of the encoder """
-    ENC_PPR = 543 # calculated to be 543 for 360 degrees of rotation
+    ENC_PPR = 546 # calculated to be 543 for 360 degrees of rotation
 
     """Encoder object"""
     encoderNL = None
@@ -79,10 +79,10 @@ class Motors:
 
         #MOTORS ENCODERS PHASES
         #MOTOR ENCODERS 
-        self.encoderNL = RotaryEncoder(NLA, NLB, max_steps=0)
-        self.encoderNR = RotaryEncoder(NRA, NRB, max_steps=0)
-        self.encoderSL = RotaryEncoder(SLA, SLB, max_steps=0)
-        self.encoderSR = RotaryEncoder(SRA, SRB, max_steps=0)
+        self.encoderNL = RotaryEncoder(NLA, NLB, max_steps=self.ENC_PPR)
+        self.encoderNR = RotaryEncoder(NRA, NRB, max_steps=self.ENC_PPR)
+        self.encoderSL = RotaryEncoder(SLA, SLB, max_steps=self.ENC_PPR)
+        self.encoderSR = RotaryEncoder(SRA, SRB, max_steps=self.ENC_PPR)
 
     # change DutyCycle
     def change_dc(self, dc):
@@ -93,10 +93,11 @@ class Motors:
 
     # return PWM for rad/s
     def rads2pwm(self, rads=None):
-        # try to keep the pwm close to the rad/s that we want
-        # TODO: Implement
-        pwm = 64
-        return self.pwm_dc
+        max_rad = (4 * np.pi)  # Approximation of 5π/2
+        pwm_value = (rads / max_rad) * 255
+        #print(max(0, min(255, int(pwm_value))))
+        return max(0, min(255, int(pwm_value)))  # Clamping to range [0, 255]
+        #return self.pwm_dc
 
     def get_rads(self, i=0, th=None):
         if th!= None:
@@ -116,7 +117,7 @@ class Motors:
         return self.get_rads(i)/0.017453
     
     def get_speed(self, i=0):
-        tsample = 0.01
+        tsample = 0.05
         distance1 = self.get_rads(i)
         time.sleep(tsample)
         distance2 = self.get_rads(i)
@@ -128,7 +129,6 @@ class Motors:
             self.pi.set_PWM_dutycycle(self.NLL, self.rads2pwm(w1)) # NL
             self.pi.write(self.NLH, 0)               # -
         elif w1 < 0:
-            
             self.pi.write(self.NLL, 0)               # NL
             self.pi.set_PWM_dutycycle(self.NLH, self.rads2pwm(w1*(-1))) # -
         else:
@@ -190,17 +190,17 @@ class Motors:
 
     def NORTH(self, dt=None, rads=None):
         # North wheels
-        self.pi.set_PWM_dutycycle(self.NLL, self.rads2pwm(rads)) # NL
+        self.pi.set_PWM_dutycycle(self.NLL, self.pwm_dc) # NL
         self.pi.write(self.NLH, 0)               # -
 
-        self.pi.set_PWM_dutycycle(self.NRL, self.rads2pwm(rads)) # NR
+        self.pi.set_PWM_dutycycle(self.NRL, self.pwm_dc) # NR
         self.pi.write(self.NRH, 0)               # -
         
         # South wheels
-        self.pi.set_PWM_dutycycle(self.SLL, self.rads2pwm(rads))  # SL
+        self.pi.set_PWM_dutycycle(self.SLL, self.pwm_dc)  # SL
         self.pi.write(self.SLH, 0)
 
-        self.pi.set_PWM_dutycycle(self.SRL, self.rads2pwm(rads))  # SR
+        self.pi.set_PWM_dutycycle(self.SRL, self.pwm_dc)  # SR
         self.pi.write(self.SRH, 0)                # -
 
         # delay for distance (* .5 sec for ~5cm)
