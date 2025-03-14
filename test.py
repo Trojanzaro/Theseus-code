@@ -74,6 +74,7 @@ try:
 
     t = []
     v = []
+    st =[]
 
     # PID CONTROLLER SETUP
     setpoint = np.pi  # Desired speed in rads/s
@@ -92,13 +93,13 @@ try:
     # Execution main loop that displays the current
     # angular position of the encoder shaft, and other velocity info
     b = time.time()
-    while motors.encoderNL.steps < 5000:
+    while motors.sEncoderNL < 5000:
 
         # PID FEEDBACK LOOP A)
         # set target motors angular velocity to target
         #motors.W(w1=process_variable_nl, w2=process_variable_nr, w3=process_variable_sl, w4=process_variable_sr)
-        motors.change_dc(127)
-        #motors.NORTH()
+        motors.change_dc(50)
+        motors.NORTH()
         
         # PID FEEDBACK LOOP B)
         # compute error
@@ -114,19 +115,20 @@ try:
         process_variable_sr += control_output_sr * dt
 
         #print("steps = {}\nAngle = {:0.0f} deg".format(motors.encoderNL.steps, motors.get_degs(0)))
-        print("NL: rads = {} rads/s Deg =  {}".format(motors.get_speed(0), motors.get_degs(i=0)))
-        print("NL: {}".format(motors.encoderNL.value))
+        print("NL: rads = {} rads/s Deg =  {}".format(motors.speedNL , motors.get_degs(i=0)))
+        print("NL: {}".format(motors.sEncoderNL))
         # print("NR: rads = {} rads/s Deg =  {}".format(motors.get_speed(1), motors.get_degs(i=1)))
         # print("SL: rads = {} rads/s Deg =  {}".format(motors.get_speed(2), motors.get_degs(i=2)))
         # print("SR: rads = {} rads/s Deg =  {}".format(motors.get_speed(3), motors.get_degs(i=3)))
 
         t.append(time.time() - b)
-        v.append(motors.get_speed(0))
+        v.append(motors.speedNL)
+        st.append(motors.sEncoderNL)
 
     with open('eggs.csv', 'w', newline='') as csvfile:
         for i in range(0, len(t)):
-            spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v'])
-            spamwriter.writerow({'t': t[i], 'v': v[i]})
+            spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v', 's'])
+            spamwriter.writerow({'t': t[i], 'v': v[i], 's':st[i]})
     print('Done.')
     # Releasing GPIO pins
 
@@ -137,7 +139,7 @@ try:
 except KeyboardInterrupt:
     with open('eggs.csv', 'w', newline='') as csvfile:
         spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v'])
-        spamwriter.writerow({'t': motors.encoderNL.steps, 'v': motors.get_speed(0)})
+        spamwriter.writerow({'t': motors.sEncoderNL, 'v': motors.speedNL})
 
     # close pigpio
     motors.HALT()

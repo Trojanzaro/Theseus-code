@@ -1,7 +1,10 @@
 import pigpio
 import time
 import numpy as np
+import threading
 from gpiozero import RotaryEncoder
+
+import RPi.GPIO as GPIO
 
 class Motors:
     """The control class for Theseus motors"""
@@ -16,7 +19,8 @@ class Motors:
     ENC_PPR = 546 # calculated to be 543 for 360 degrees of rotation
 
     """Encoder object"""
-    encoderNL = None
+    last_encoderNLA = 0
+    last_encoderNLB = 0
     encoderNR = None
     encoderSL = None
     encoderSR = None
@@ -26,6 +30,19 @@ class Motors:
     sEncoderNR = 0
     sEncoderSL = 0
     sEncoderSR = 0
+
+    """Motor Speeds"""
+    speedNL = 0.0 # in rads/s
+    speedNr = 0.0
+    speedSL = 0.0
+    speedSR = 0.0
+
+    # running threads
+    PID_thread = None
+    speed_thread = None
+
+    PID_running = False
+    speed_running = False
 
     # Variable for RPM measuerment
     rpm_right = 0.0
@@ -79,10 +96,26 @@ class Motors:
 
         #MOTORS ENCODERS PHASES
         #MOTOR ENCODERS 
-        self.encoderNL = RotaryEncoder(NLA, NLB, max_steps=self.ENC_PPR)
-        self.encoderNR = RotaryEncoder(NRA, NRB, max_steps=self.ENC_PPR)
-        self.encoderSL = RotaryEncoder(SLA, SLB, max_steps=self.ENC_PPR)
-        self.encoderSR = RotaryEncoder(SRA, SRB, max_steps=self.ENC_PPR)
+        # self.encoderNL = RotaryEncoder(NLA, NLB, max_steps=0)
+        # self.encoderNR = RotaryEncoder(NRA, NRB, max_steps=0)
+        # self.encoderSL = RotaryEncoder(SLA, SLB, max_steps=0)
+        # self.encoderSR = RotaryEncoder(SRA, SRB, max_steps=0)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.NLA, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.NLB, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+        # Interrupt on encoder signal change
+        GPIO.add_event_detect(self.NLA, GPIO.BOTH, callback=self._encoderNL_callback)
+        GPIO.add_event_detect(self.NLB, GPIO.BOTH, callback=self._encoderNL_callback)
+
+        # start the PID and Speed Threads
+        self.PID_running = True
+        self.PID_thread = threading.Thread(target=self._PID_thread, daemon=True)
+        self.PID_thread.start()
+
+        # self.speed_running = True
+        # self.speed_thread = threading.Thread(target=self._speed_thread, daemon=True)
+        # self.speed_thread.start()
 
     # change DutyCycle
     def change_dc(self, dc):
@@ -103,25 +136,67 @@ class Motors:
         if th!= None:
             return th*0.017453
         if i == 0:
-            return (360 / self.ENC_PPR * self.encoderNL.steps)*0.017453
+            return (360 / self.ENC_PPR * self.sEncoderNL)*0.017453
         if i == 1:
-            return (360 / self.ENC_PPR * self.encoderNR.steps)*0.017453
+            return (360 / self.ENC_PPR * self.sEncoderNR)*0.017453
         if i == 2:
-            return (360 / self.ENC_PPR * self.encoderSL.steps)*0.017453
+            return (360 / self.ENC_PPR * self.sEncoderSL)*0.017453
         if i == 3:
-            return (360 / self.ENC_PPR * self.encoderSR.steps)*0.017453
+            return (360 / self.ENC_PPR * self.sEncoderSR)*0.017453
 
     def get_degs(self, i=0, th=None):
         if th!= None:
             return th/0.017453
         return self.get_rads(i)/0.017453
     
-    def get_speed(self, i=0):
-        tsample = 0.05
-        distance1 = self.get_rads(i)
-        time.sleep(tsample)
-        distance2 = self.get_rads(i)
-        return (distance2-distance1)/tsample
+    def _encoderNL_callback(self, channel):
+        """Interrupt handler for encoder signal using quadrature decoding."""
+        a_state = GPIO.input(self.NLA)
+        b_state = GPIO.input(self.NLB)
+
+        # Quadrature decoding logic
+        if a_state != self.last_encoderNLA or b_state != self.last_encoderNLB:
+            if a_state == b_state:
+                self.sEncoderNL += 1  # Clockwise rotation
+            else:
+                self.sEncoderNL -= 1  # Counter-clockwise rotation
+
+        # Store last states
+        self.last_encoderNLA = a_state
+        self.last_encoderNLB = b_state
+    
+    def _speed_thread(self):
+        print("_speed_thread started")
+        while self.speed_running:
+            # self.sEncoderNL = self.encoderNL.steps
+            # self.sEncoderNR = self.encoderNR.steps
+            # self.sEncoderSL = self.encoderSL.steps
+            # self.sEncoderSR = self.encoderSR.steps
+
+            tsample = 0.05
+
+            distanceNL1 = (360 / self.ENC_PPR * self.sEncoderNL)*0.017453
+            distanceNR1 = self.get_rads(1)
+            distanceSL1 = self.get_rads(2)
+            distanceSR1 = self.get_rads(3)
+
+            time.sleep(tsample)
+
+            distanceNL2 = (360 / self.ENC_PPR * self.sEncoderNL)*0.017453
+            distanceNR2 = self.get_rads(1)
+            distanceSL2 = self.get_rads(2)
+            distanceSR2 = self.get_rads(3)
+
+            #self.current_speed_rads = revs_per_sec * (2 * 3.14159) * self.gear_ratio
+            
+            self.speedNL = (distanceNL2-distanceNL1)/tsample
+            self.speedNR = (distanceNR2-distanceNR1)/tsample
+            self.speedSL = (distanceSL2-distanceSL1)/tsample
+            self.speedSR = (distanceSR2-distanceSR1)/tsample
+
+    def _PID_thread(self):
+        pass
+        
 
     def W(self, dth=None, w1=None, w2=None, w3=None, w4=None):
         # North wheels
