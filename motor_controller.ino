@@ -6,7 +6,7 @@ void setup() {
 
 byte pwm = 64;
 byte pwmCounter = 0; // Naturally limited to 0-255
-byte pwms[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+byte pwms[] = { 0, 0/*pwm*/, 0, 0/*pwm*/, 0, 0/*pwm*/, 0, 0/*pwm*/ };
 
 int steps = 0;
 
