@@ -1,8 +1,10 @@
 #include <math.h>
 #include "Rotary.h"
-#include "PIDController.h"
+#include "PIDController.h" //TODO: DISCUSS POTENTIAL REMOVAL
 
 #define _USE_MATH_DEFINES
+#define PPR 546
+#define MAX_ANG_V (55/9)*M_PI
 
 //encoder params
 long counter1 = 0;
@@ -21,19 +23,12 @@ long counter4 = 0;
 long lastCounter4 = 0;
 unsigned long lastTime4 = 0;
 
-#define PPR 546
-#define MAX_ANG_V (55/9)*M_PI
-
 unsigned long lastTime = 0;
 
 Rotary enc4 = Rotary(10, 11);
 Rotary enc3 = Rotary(12, 13);
 Rotary enc2 = Rotary(A0, A1);
 Rotary enc1 = Rotary(A2, A3);
-
-//PID CONTROLLERS
-PIDController pid1 = PIDController(6.84, 105.5, 0.67/*Kp,Ki,Kd*/, (M_PI*2)/*setpoint*/);
-double pid1_v = 0.5;
 
 //PWM Variables
 float x = 127;//(cos(t)/1)*255;
@@ -79,20 +74,20 @@ void setup() {
 
 void loop() {
   t += 0.0005;
-  float s = (cos(t)/1)*((5/2)*M_PI);
-  setSpeed(0);
+  float s = (cos(t)/1)*((33/9)*M_PI);
+  setSpeed(s);
   
   // PWM writing logic
-  byte selected_pwms[] = {0,x,0,x,0,x,0,x};
+  byte selected_pwms[] = {x,0,x,0,x,0,x,0};
   if(x < 0){
-    selected_pwms[0] = abs(x);
-    selected_pwms[1]= 0;
-    selected_pwms[2] = abs(x);
-    selected_pwms[3] = 0;
-    selected_pwms[4]= abs(x);
-    selected_pwms[5]= 0;
-    selected_pwms[6]= abs(x);
-    selected_pwms[7]= 0;
+    selected_pwms[0] = 0;
+    selected_pwms[1]= abs(x);
+    selected_pwms[2] = 0;
+    selected_pwms[3] = abs(x);
+    selected_pwms[4]= 0;
+    selected_pwms[5]= abs(x);
+    selected_pwms[6]= 0;
+    selected_pwms[7]= abs(x);
   }
 
   PORTD ^= (-(pwmcounter >= selected_pwms[0]) ^ PORTD) & (1 << 2); // D2
@@ -130,18 +125,19 @@ void loop() {
   float deltaT = (currentTime - lastTime) / 1000000.0; // Time in seconds
 
   if(deltaT >= 0.05){
-    double cpid1 = pid1.compute(pid1_v, deltaT);
-    pid1_v += cpid1 * deltaT;
-    
+    double w1 = getSpeed(counter1, lastCounter1, lastTime1);
+    double w2 = getSpeed(counter2, lastCounter2, lastTime2);
+    double w3 = getSpeed(counter3, lastCounter3, lastTime3);
+    double w4 = getSpeed(counter4, lastCounter4, lastTime4);
+
     lastTime = currentTime;
-    //Serial.println(pid1_v);
-    Serial.print(getSpeed(counter1, lastCounter1, lastTime1));
+    Serial.print(w1);
     Serial.print(" ");
-    Serial.print(getSpeed(counter2, lastCounter2, lastTime2));
+    Serial.print(w2);
     Serial.print(" ");
-    Serial.print(getSpeed(counter3, lastCounter3, lastTime3));
+    Serial.print(w3);
     Serial.print(" ");    
-    Serial.println(getSpeed(counter4, lastCounter4, lastTime4));
+    Serial.println(w4);
   }
 
 }
