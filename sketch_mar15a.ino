@@ -1,4 +1,5 @@
 #include <math.h>
+#include <string.h>
 #include "Rotary.h"
 #include "PIDController.h" //TODO: DISCUSS POTENTIAL REMOVAL
 
@@ -31,13 +32,11 @@ Rotary enc2 = Rotary(A0, A1);
 Rotary enc1 = Rotary(A2, A3);
 
 //PWM Variables
-float x = 127;//(cos(t)/1)*255;
+float w1,w2,w3,w4;
 byte pwmcounter = 0; // Naturally limited to 0-255
+byte selected_pwms[] = {0,0,0,0,0,0,0,0};
 
-byte pwms[] = { 0, x, 0, x, 0, x, 0, x}; 
-byte pwms_0[] = { 0, 0, 0, 0, 0, 0, 0, 0}; 
-
-double t = 0;
+char inputBuffer[50];
 
 //FUNCTIONS
 float getSpeed(long currentCount, long &lastCount, unsigned long &lastTime) {
@@ -54,8 +53,40 @@ float getSpeed(long currentCount, long &lastCount, unsigned long &lastTime) {
   return speed * (M_PI / 180); // Returns speed in radians per second
 }
 
-void setSpeed(float rads) {
-  x = (rads/19.198621772)*(255);
+void setSpeed(float rads, int i) {
+  switch(i) {
+    case 0:
+      w1 = (rads/19.198621772)*(255);
+      
+      if(rads < 0) { selected_pwms[7] = abs(w1); selected_pwms[6] = 0;}
+      else {selected_pwms[7] = 0; selected_pwms[6] = w1;}
+      
+      break;
+    case 1:
+      w2 = (rads/19.198621772)*(255);
+      
+      if(rads < 0) { selected_pwms[5] = abs(w2); selected_pwms[4] = 0;}
+      else {selected_pwms[5] = 0; selected_pwms[4] = w2;}
+      
+      break;
+    case 2:
+      w3 = (rads/19.198621772)*(255);
+      
+      if(rads < 0) { selected_pwms[3] = abs(w3); selected_pwms[2] = 0;}
+      else {selected_pwms[3] = 0; selected_pwms[2] = w3;}
+      
+      break;
+    case 3:
+      w4 = (rads/19.198621772)*(255);
+      
+      if(rads < 0) { selected_pwms[1] = abs(w4); selected_pwms[0] = 0;}
+      else {selected_pwms[1] = 0; selected_pwms[0] = w4;}
+      
+      break;
+    default:
+      break;
+  }
+  
 }
 
 void setup() {
@@ -69,27 +100,11 @@ void setup() {
   pinMode(A1, INPUT_PULLUP); // Motor 2 encoder B
   pinMode(A2, INPUT_PULLUP); // Motor 1 encoder A
   pinMode(A3, INPUT_PULLUP); // Motor 1 encoder B
-  Serial.begin(230400);
+  Serial.begin(115200);
 }
 
 void loop() {
-  t += 0.0005;
-  float s = (cos(t)/1)*((33/9)*M_PI);
-  setSpeed(s);
-  
   // PWM writing logic
-  byte selected_pwms[] = {x,0,x,0,x,0,x,0};
-  if(x < 0){
-    selected_pwms[0] = 0;
-    selected_pwms[1]= abs(x);
-    selected_pwms[2] = 0;
-    selected_pwms[3] = abs(x);
-    selected_pwms[4]= 0;
-    selected_pwms[5]= abs(x);
-    selected_pwms[6]= 0;
-    selected_pwms[7]= abs(x);
-  }
-
   PORTD ^= (-(pwmcounter >= selected_pwms[0]) ^ PORTD) & (1 << 2); // D2
   PORTD ^= (-(pwmcounter >= selected_pwms[1]) ^ PORTD) & (1 << 3); // D3
   PORTD ^= (-(pwmcounter >= selected_pwms[2]) ^ PORTD) & (1 << 4); // D4
@@ -125,19 +140,45 @@ void loop() {
   float deltaT = (currentTime - lastTime) / 1000000.0; // Time in seconds
 
   if(deltaT >= 0.05){
-    double w1 = getSpeed(counter1, lastCounter1, lastTime1);
-    double w2 = getSpeed(counter2, lastCounter2, lastTime2);
-    double w3 = getSpeed(counter3, lastCounter3, lastTime3);
-    double w4 = getSpeed(counter4, lastCounter4, lastTime4);
+    double w1s = getSpeed(counter1, lastCounter1, lastTime1);
+    double w2s = getSpeed(counter2, lastCounter2, lastTime2);
+    double w3s = getSpeed(counter3, lastCounter3, lastTime3);
+    double w4s = getSpeed(counter4, lastCounter4, lastTime4);
 
     lastTime = currentTime;
-    Serial.print(w1);
+    Serial.print(w1s);
     Serial.print(" ");
-    Serial.print(w2);
+    Serial.print(w2s);
     Serial.print(" ");
-    Serial.print(w3);
+    Serial.print(w3s);
     Serial.print(" ");    
-    Serial.println(w4);
+    Serial.println(w4s);
   }
 
+  // SET INDIVIDIAL MOTOR SPEEDS
+  if (Serial.available()) {
+    // numbers of the angular velocities to be read from Serial
+    float num1,num2,num3,num4;
+
+    // Read four flating point numbers eg '3.14 0.0 0.0 3.14'
+    Serial.readStringUntil('\n').toCharArray(inputBuffer, sizeof(inputBuffer));
+
+    //break the four numbers out of the string
+    char *token; // using strtok to break each number from the string, by seperating the delimiter (space ' ')
+    token = strtok(inputBuffer, " "); // break the string, eg '<number1><space><number2><space><number3><space><number4>'
+    num1 = atof(token); // turn from string to float
+    if(num1 != -9999){ setSpeed(num1, 0);} //change speed to the read angular velocity, magic number -9999 to ignore changing existing speed
+    
+    token = strtok(NULL, " "); // proceed for the next number in the string
+    num2 = atof(token);
+    if(num2 != -9999){ setSpeed(num2, 1);}
+    
+    token = strtok(NULL, " "); // and the next
+    num3 = atof(token);
+    if(num3 != -9999){setSpeed(num3, 2);}
+    
+    token = strtok(NULL, " "); // and the next
+    num4 = atof(token);
+    if(num4 != -9999){setSpeed(num4, 3);}    
+  }
 }
