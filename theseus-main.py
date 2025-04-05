@@ -2,7 +2,9 @@ import serial, time
 import csv, io
 
 
-port = serial.Serial("/dev/ttyS0")
+port = serial.Serial(port="/dev/ttyS0", 
+                     baudrate=115200, 
+                     timeout=1)
  # sudo chmod 777 /dev/ttyS0 
 
 t1 = time.time()
@@ -17,18 +19,19 @@ try:
     # if port.isOpen():
     #     port.write("0 0 0 0\n".encode())
     #     port.flush()
-    if port.isOpen():
-        port.write(b'6.28 -6.28 -6.28 6.28\n')
-        port.flush()
+    
     while time.time() - t1 <= 10:
-        
+        if port.isOpen():
+            port.write("6.28 -6.28 -6.28 6.28\r\n".encode('ascii'))
+
         if port.in_waiting > 0:
             t.append(time.time() - t1)
             rcv = port.readline()
+            print(rcv)
             av = rcv.decode('ascii').rstrip()
             angular_velocities = av.split(" ")
             
-            print(time.time() - t1, angular_velocities)
+            # print(time.time() - t1, angular_velocities)
             
             v1.append(angular_velocities[0])
             v2.append(angular_velocities[1])
