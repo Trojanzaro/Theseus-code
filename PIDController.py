@@ -29,3 +29,6 @@ class PIDController:
             self.previous_error = error
             
             return output
+    
+    def set(self, point):
+         self.setpoint = point
