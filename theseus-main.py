@@ -21,7 +21,7 @@ w = []
 dt = 0.01
 setpoint = 2*np.pi  # Desired speed in rads/s
 
-pid_nl = PID.PIDController(Kp=1.3, Ki=1.72, Kd=0.7, setpoint=setpoint)
+pid_nl = PID.PIDController(Kp=3.9, Ki=1.72, Kd=0.8, setpoint=setpoint)
 pid_nr = PID.PIDController(Kp=5.5, Ki=9.82, Kd=0.55, setpoint=setpoint)
 pid_sl = PID.PIDController(Kp=5.5, Ki=9.82, Kd=0.55, setpoint=setpoint)
 pid_sr = PID.PIDController(Kp=5.5, Ki=9.82, Kd=0.55, setpoint=setpoint)
@@ -94,7 +94,7 @@ try:
 
         # PID FEEDBACK LOOP B)
         # compute error
-        control_output_nl = pid_nl.compute(process_variable_nl, dt)
+        control_output_nl = pid_nl.compute(w[0], dt)
         process_variable_nl += control_output_nl * dt
 
         if time.time() - t1 >= 4 and time.time() - t1 < 8:
@@ -106,7 +106,7 @@ try:
 except:
     setSpeeds([0,0,0,0])
     print("error, f u")
-    with open('eggs.csv', 'w', newline='') as csvfile:
-        for i in range(0, len(t)):
-            spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v1', 'v2', 'v3', 'v4'])
-            spamwriter.writerow({'t': t[i], 'v1': v1[i],'v2': v2[i], 'v3': v3[i], 'v4': v4[i]})
+    # with open('eggs.csv', 'w', newline='') as csvfile:
+    #     for i in range(0, len(t)):
+    #         spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v1', 'v2', 'v3', 'v4'])
+    #         spamwriter.writerow({'t': t[i], 'v1': v1[i],'v2': v2[i], 'v3': v3[i], 'v4': v4[i]})
