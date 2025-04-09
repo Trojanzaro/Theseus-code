@@ -34,3 +34,6 @@ class PIDController:
         self.setpoint = point
         self.previous_error = 0
         self.integral = 0
+
+    def get(self):
+        return self.setpoint
