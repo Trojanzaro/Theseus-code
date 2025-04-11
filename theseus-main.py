@@ -1,6 +1,6 @@
 import serial, time 
 import numpy as np
-import PIDController as PID
+import PIDController as PID # TODO: Discuss removal
 import csv, io
 from threading import Thread
 
@@ -17,19 +17,11 @@ t1 = time.time()
 # speed thread speeds array
 w = []
 
-# PID CONTROLLER SETUP
+# CONTROLLER SETUP
 dt = 0.05
-setpoint = 6.28  # Desired speed in rads/s
+setpoint = [6.28, 6.28, 6.28, 6.28]  # Desired speed in rads/s
 
-pid_nl = PID.PIDController(Kp=1.095, Ki=1.778, Kd=0.72, setpoint=setpoint)
-pid_nr = PID.PIDController(Kp=1.095, Ki=1.778, Kd=0.72, setpoint=setpoint)
-pid_sl = PID.PIDController(Kp=1.095, Ki=1.778, Kd=0.72, setpoint=setpoint)
-pid_sr = PID.PIDController(Kp=1.095, Ki=1.778, Kd=0.72, setpoint=setpoint)
-
-process_variable_nl = 3.14 # starting value in rads/s
-process_variable_nr = 3.14
-process_variable_sl = 3.14
-process_variable_sr = 3.14
+process_variables =[0, 0, 0, 0] # actual output speeds in rads/s
 
 # function that reads the speeds from the serial port
 def getSpeeds():
@@ -41,14 +33,14 @@ def getSpeeds():
 # function for setting all motors speeds at the same time
 def setSpeeds(rads: list):
     if port.isOpen():
-        port.write((" ".join(map(str, rads)) + '\n').encode())
+        port.write((" ".join(map("{:.2f}".format, rads)) + '\n').encode())
 
 # function for setting one motor speed at a time
 def setSpeed(rads: float, i: int):
     w = [-9999, -9999, -9999, -9999]
     w[i] = rads
     if port.isOpen():
-        port.write((" ".join(map(str, w)) + '\n').encode())
+        port.write((" ".join(map("{:.2f}".format, w)) + '\n').encode())
 
 # the speed thread serves two purposes, to read the speeds from the arduino through
 # serial 
@@ -60,7 +52,7 @@ def speed_thread(lt1, port):
     v3 = []
     v4 = []
 
-    while time.time() - lt1 <= 20:
+    while time.time() - lt1 <= 26:
         if port.in_waiting > 0:
             t.append(time.time() - lt1)
             rcv = port.readline().decode('ascii').rstrip().split(" ")
@@ -76,6 +68,17 @@ def speed_thread(lt1, port):
             spamwriter.writerow({'t': t[i], 'v1': v1[i],'v2': v2[i], 'v3': v3[i], 'v4': v4[i]})
         print('filewritten!')
 
+# this is the Naive Error Calculator controller that only
+# returns an error times a multiplier (past a threshold 0.9 error)
+# so a single Porpotional controller (No I or D)
+# TODO: DISCUSS!
+def nv_error(ppoint, stpoint):
+    error = stpoint - ppoint
+    if error >= 0.9:
+        return error*21
+    else:
+        return error*21
+
 # MAIN LOOP STARTS WITH TRY CATCH
 # MAIN LOOP
 try:
@@ -87,42 +90,37 @@ try:
         print(w)
         # DEMO STEPS
         # STEPS
-        if time.time() - t1 <= 4:
-            pid_nl.set(6.28)
-            pid_nr.set(6.28)
-            pid_sl.set(6.28)
-            pid_sr.set(6.28)    
+        if time.time() - t1 >= 3.9 and time.time() - t1 <= 4.0:
+            process_variables = [0, 0, 0, 0]
+            setpoint = [-6.28, -6.28, -6.28, -6.28]
+        if time.time() - t1 >= 7.9 and time.time() - t1 <= 8.0:
+            process_variables = [0, 0, 0, 0]
+            setpoint = [6.28, -6.28, -6.28, 6.28]
+        if time.time() - t1 >= 11.9 and time.time() - t1 <= 12:
+            process_variables = [0, 0, 0, 0]
+            setpoint = [-6.28, 6.28, 6.28, -6.28]
+        if time.time() - t1 >= 16.9 and time.time() - t1 <= 17:
+            process_variables = [0, 0, 0, 0]
+            setpoint = [0, -6.28, -6.28, 0]
 
-        if time.time() - t1 >= 4 and time.time() - t1 <= 8:
-            pid_nl.set(3.14)
-            pid_nr.set(3.14)
-            pid_sl.set(3.14)
-            pid_sr.set(3.14)
-        
-        if time.time() - t1 >= 8 :
-            pid_nl.set(6.28)
-            pid_nr.set(-6.28)
-            pid_sl.set(-6.28)
-            pid_sr.set(6.28)
-
-        # PID FEEDBACK LOOP A)
+        # FEEDBACK LOOP A)
         # set target motors angular velocity to target
-        setSpeeds([process_variable_nl, process_variable_nr, process_variable_sl, process_variable_sr])
+        setSpeeds(process_variables)
         time.sleep(dt)
 
-        # PID FEEDBACK LOOP B)
+        # FEEDBACK LOOP B)
         # compute error
-        control_output_nl = pid_nl.compute(process_variable_nl, dt)
-        control_output_nr = pid_nr.compute(process_variable_nr, dt)
-        control_output_sl = pid_sl.compute(process_variable_sl, dt)
-        control_output_sr = pid_sr.compute(process_variable_sr, dt)
+        control_output_nl = nv_error(process_variables[0], setpoint[0])
+        control_output_nr = nv_error(process_variables[1], setpoint[1])
+        control_output_sl = nv_error(process_variables[2], setpoint[2])
+        control_output_sr = nv_error(process_variables[3], setpoint[3])
 
-        # PID FEEDBACK LOOP C)
+        # FEEDBACK LOOP C)
         # FEEDBACK!
-        process_variable_nl += control_output_nl * dt
-        process_variable_nr += control_output_nr * dt
-        process_variable_sl += control_output_sl * dt
-        process_variable_sr += control_output_sr * dt
+        process_variables[0] += control_output_nl * dt + w[0]*0.01
+        process_variables[1] += control_output_nr * dt + w[1]*0.01
+        process_variables[2] += control_output_sl * dt + w[2]*0.01
+        process_variables[3] += control_output_sr * dt + w[3]*0.01
 
 
 except:
