@@ -1,7 +1,10 @@
 import serial, time 
 import numpy as np
-import PIDController as PID # TODO: Discuss removal
-import csv, io
+import csv
+
+import pigpio
+import sonar_trigger_echo
+
 from threading import Thread
 
 # serial communication port connected at pins GPIO14 GPIO15 (Tx,Rx)
@@ -19,9 +22,11 @@ w = []
 
 # CONTROLLER SETUP
 dt = 0.05
-setpoint = [6.28, 6.28, 6.28, 6.28]  # Desired speed in rads/s
+setpoint = [6.28, 6.28, 6.28, 6.28]  # Desired angular speed in rads/s
 
-process_variables = [0, 0, 0, 0] # actual output speeds in rads/s
+process_variables = [0, 0, 0, 0] # actual output angular speeds in rads/s
+
+v = [0.0, 0.0, 0.0] # speed array for [Vy, Vx, Ωz]
 
 # function for setting all motors speeds at the same time
 def setSpeeds(rads: list):
@@ -35,49 +40,69 @@ def setSpeed(rads: float, i: int):
     if port.isOpen():
         port.write((" ".join(map("{:.2f}".format, w)) + '\n').encode())
 
+# function for moving the robot
+def move(v_array=[], dt=None):
+    global v
+    v = v_array
+    if dt is not None:
+        time.sleep(dt)
+        v = [0.0, 0.0, 0.0]
+
+def get_speed(sonar, move_thread=None):
+    global v
+    while True:
+        d1 = (sonar.read()/2)/29.1
+        time.sleep(0.5)
+        d2 = (sonar.read()/2)/29.1
+
+        print("{} {}".format(d2, (d1-d2)/0.5))
+
 # the speed thread serves two purposes, to read the speeds from the arduino through
 # serial 
 def speed_thread(lt1, port):
     global w
-    t = []
-    v1 = []
-    v2 = []
-    v3 = []
-    v4 = []
-
-    while time.time() - lt1 <= 26:
+    while True:
         if port.in_waiting > 0:
-            t.append(time.time() - lt1)
             rcv = port.readline().decode('ascii').rstrip().split(" ")
             angular_velocities = list(map(float, rcv))
             w = angular_velocities
-            v1.append(angular_velocities[0])
-            v2.append(angular_velocities[1])
-            v3.append(angular_velocities[2])
-            v4.append(angular_velocities[3])
-    with open('eggs.csv', 'w', newline='') as csvfile:
-        for i in range(0, len(t)):
-            spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v1', 'v2', 'v3', 'v4'])
-            spamwriter.writerow({'t': t[i], 'v1': v1[i],'v2': v2[i], 'v3': v3[i], 'v4': v4[i]})
-        print('filewritten!')
 
 
 # MAIN LOOP STARTS WITH TRY CATCH
 # MAIN LOOP
 try:
+    # PIGPIO
+    pi = pigpio.pi()
+
+    # create sonar object
+    sonar = sonar_trigger_echo.ranger(pi, 23, 18)
+
     # start the speed thread to monitor and change the target speeds
     sd_thr = Thread(target=speed_thread, args=(t1, port), daemon=True)
     sd_thr.start()
 
     # set inverse kinematics input array [Vx, Vy, Wz]
-    r = 0.036 # radius of on wheel 36 mm
-    lx = 0.7 # 5 cm + 35/2 mm
-    ly = 0.65
-    v = [0, -0.10, -0.05]
+    r = 0.033 # radius of on wheel 36 mm
+    lx = 0.65
+    ly = 0.7 # 5 cm + 35/2 mm
+
+    # move bool
+    move_b = True
+    move_thread = Thread(target=move, args=([0.1, 0.0, 0.0], ), daemon=True)
+    move_thread.start()
 
     while True:
-        print(w)
+        
+        # DEMO MOVE THREAD
+        # MOVE THREAD
 
+        print("{} {}".format(r, (sonar.read()/2)/29.1))
+        if (sonar.read()/2)/29.1 <= 11.001:
+            print("collide")
+            # move_thread = Thread(target=move, args=(1, [0.0, 0.0, 0.16]), daemon=False)
+            # move_thread.start()
+
+        
         # DEMO - INVERSE KINEMATICS
         # INVERSE KINEMATICS
         # Construct the transformation matrix
@@ -94,21 +119,6 @@ try:
         # set angukar velocities
         setpoint = omega
 
-        # DEMO - STEPS
-        # STEPS
-        # if time.time() - t1 >= 3.9 and time.time() - t1 <= 4.0:
-        #     process_variables = [0, 0, 0, 0]
-        #     setpoint = [-6.28, -6.28, -6.28, -6.28]
-        # if time.time() - t1 >= 7.9 and time.time() - t1 <= 8.0:
-        #     process_variables = [0, 0, 0, 0]
-        #     setpoint = [6.28, -6.28, -6.28, 6.28]
-        # if time.time() - t1 >= 11.9 and time.time() - t1 <= 12:
-        #     process_variables = [0, 0, 0, 0]
-        #     setpoint = [-6.28, 6.28, 6.28, -6.28]
-        # if time.time() - t1 >= 16.9 and time.time() - t1 <= 17:
-        #     process_variables = [0, 0, 0, 0]
-        #     setpoint = [0, -6.28, -6.28, 0]
-
         # FEEDBACK LOOP A)
         # set target motors angular velocity to target
         setSpeeds(process_variables)
@@ -123,16 +133,12 @@ try:
 
         # FEEDBACK LOOP C)
         # FEEDBACK!
-        process_variables[0] += control_output_nl *dt*3.2
-        process_variables[1] += control_output_nr *dt*3.2
-        process_variables[2] += control_output_sl *dt*3.2
-        process_variables[3] += control_output_sr *dt*3.2
-
-
+        process_variables[0] += control_output_nl *dt*5.2
+        process_variables[1] += control_output_nr *dt*5.2
+        process_variables[2] += control_output_sl *dt*5.2
+        process_variables[3] += control_output_sr *dt*5.2
 except:
+    sonar.cancel()
+    pi.stop()
     setSpeeds([0,0,0,0])
     print("error, f u")
-    # with open('eggs.csv', 'w', newline='') as csvfile:
-    #     for i in range(0, len(t)):
-    #         spamwriter = csv.DictWriter(csvfile, fieldnames=['t', 'v1', 'v2', 'v3', 'v4'])
-    #         spamwriter.writerow({'t': t[i], 'v1': v1[i],'v2': v2[i], 'v3': v3[i], 'v4': v4[i]})
