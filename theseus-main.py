@@ -13,57 +13,53 @@ port = serial.Serial(port="/dev/ttyS0",
                      baudrate=115200, 
                      timeout=3)
 
-# this is a time counter to measure runtime elapsed time from
-# program start
-t1 = time.time()
+# PIGPIO object
+pi = pigpio.pi()
 
-# speed thread speeds array
-w = []
+# create sonar HC-SR04 object
+sonar = sonar_trigger_echo.ranger(pi, 23, 18)
+
+# angular_speeds_thread angular velocites array
+# will be set to the arduino read angular velocities of each motor 0,1,2,3
+w = [0.0, 0.0, 0.0, 0.0]
 
 # CONTROLLER SETUP
 dt = 0.05
-setpoint = [6.28, 6.28, 6.28, 6.28]  # Desired angular speed in rads/s
+setpoint = [0.0, 0.0, 0.0, 0.0]  # Desired angular speed in rads/s
+process_variables = [0.0, 0.0, 0.0, 0.0] # actual output angular speeds in rads/s
 
-process_variables = [0, 0, 0, 0] # actual output angular speeds in rads/s
+# speed array for [Vy, Vx, Ωz]
+v = [0.0, 0.0, 0.0] 
 
-v = [0.0, 0.0, 0.0] # speed array for [Vy, Vx, Ωz]
-
-# function for setting all motors speeds at the same time
-def setSpeeds(rads: list):
+# function for setting all motors angular velocities at the same time
+def set_angular_ws(rads: list):
     if port.isOpen():
         port.write((" ".join(map("{:.2f}".format, rads)) + '\n').encode())
 
-# function for setting one motor speed at a time
-def setSpeed(rads: float, i: int):
-    w = [-9999, -9999, -9999, -9999]
-    w[i] = rads
+# function for setting one motor angular velocity at a time
+def set_angular_w(rads: float, i: int):
+    w = [-9999, -9999, -9999, -9999] # set to magic value -9999, if arduino reads this value as one of the speeds it will not change it
+    w[i] = rads # change the motor we want to shange
     if port.isOpen():
         port.write((" ".join(map("{:.2f}".format, w)) + '\n').encode())
 
-# function for moving the robot
-def move(v_array=[], dt=None):
-    global v
-    v = v_array
-    if dt is not None:
-        time.sleep(dt)
-        v = [0.0, 0.0, 0.0]
+# resets the global move_true and collide_true variables after set timeout
+def rese_timeout(sec):
+    global move_true, collide_true
+    dt1=time.time()
+    dt2=time.time()
+    while dt2 - dt1 <= sec:
+        dt2=time.time()
+    move_true = True
+    collide_true = False
 
-def get_speed(sonar, move_thread=None):
-    global v
-    while True:
-        d1 = (sonar.read()/2)/29.1
-        time.sleep(0.5)
-        d2 = (sonar.read()/2)/29.1
-
-        print("{} {}".format(d2, (d1-d2)/0.5))
-
-# the speed thread serves two purposes, to read the speeds from the arduino through
-# serial 
-def speed_thread(lt1, port):
+# angular_speeds_thread thread serves two purposes, to read the speeds from the arduino through
+# serial and setting the w variable to the responding speeds 
+def angular_speeds_thread(port):
     global w
     while True:
         if port.in_waiting > 0:
-            rcv = port.readline().decode('ascii').rstrip().split(" ")
+            rcv = port.readline().decode().rstrip().split(" ")
             angular_velocities = list(map(float, rcv))
             w = angular_velocities
 
@@ -71,14 +67,8 @@ def speed_thread(lt1, port):
 # MAIN LOOP STARTS WITH TRY CATCH
 # MAIN LOOP
 try:
-    # PIGPIO
-    pi = pigpio.pi()
-
-    # create sonar object
-    sonar = sonar_trigger_echo.ranger(pi, 23, 18)
-
     # start the speed thread to monitor and change the target speeds
-    sd_thr = Thread(target=speed_thread, args=(t1, port), daemon=True)
+    sd_thr = Thread(target=angular_speeds_thread, args=(port,), daemon=True)
     sd_thr.start()
 
     # set inverse kinematics input array [Vx, Vy, Wz]
@@ -86,24 +76,38 @@ try:
     lx = 0.65
     ly = 0.7 # 5 cm + 35/2 mm
 
-    # move bool
-    move_b = True
-    move_thread = Thread(target=move, args=([0.1, 0.0, 0.0], ), daemon=True)
-    move_thread.start()
+    # move bool, if true the robot moves forward only [Vy=0.1 cm/s, Vx=0, Ωz=0]
+    move_true = True
 
+    # collider bool, if true it means sonar passed the threashhold distance ~10cm
+    collide_true = False
+    
+    # velocity inverse kinematics [Vy, Vx, Ωz]
+    v = [0.1, 0.0, 0.0]
+
+    # LOOP
     while True:
         
-        # DEMO MOVE THREAD
-        # MOVE THREAD
-
-        print("{} {}".format(r, (sonar.read()/2)/29.1))
-        if (sonar.read()/2)/29.1 <= 11.001:
-            print("collide")
-            # move_thread = Thread(target=move, args=(1, [0.0, 0.0, 0.16]), daemon=False)
-            # move_thread.start()
-
+        # if the move_true boolean is true, keep the robot walking forward with 10cm/s speed
+        if move_true:
+            v = [0.1, 0.0, 0.0]
         
-        # DEMO - INVERSE KINEMATICS
+        # continiously monitor rover's distance
+        # if rover distance passes thresshold then change speeds to avoid obstancle
+        if (sonar.read() / 2) / 29.1 <= 11.001 and not collide_true:
+
+            # booleans change for only changing the speeds once
+            collide_true = True
+            move_true = False
+            
+            # turn Counter Clockwise 0.11 rads/s
+            v= [0.0, 0.0, 0.1]
+
+            # start the reset_timeout thread and have it wait for 1.0 seconds  before
+            # it resets the move_true and collide_true booleans
+            move_thread = Thread(target=rese_timeout, args=(1, ), daemon=True)
+            move_thread.start()
+
         # INVERSE KINEMATICS
         # Construct the transformation matrix
         transform_matrix = (1 / r) * np.array([
@@ -121,7 +125,7 @@ try:
 
         # FEEDBACK LOOP A)
         # set target motors angular velocity to target
-        setSpeeds(process_variables)
+        set_angular_ws(process_variables)
         time.sleep(dt)
 
         # FEEDBACK LOOP B)
@@ -140,5 +144,5 @@ try:
 except:
     sonar.cancel()
     pi.stop()
-    setSpeeds([0,0,0,0])
+    set_angular_ws([0,0,0,0])
     print("error, f u")
