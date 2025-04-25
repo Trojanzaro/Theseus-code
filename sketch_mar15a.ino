@@ -105,6 +105,7 @@ void setup() {
 
 void loop() {
   // PWM writing logic
+  // ADD pwm VALUE TO REGISTER IN LOOP
   PORTD ^= (-(pwmcounter >= selected_pwms[0]) ^ PORTD) & (1 << 2); // D2
   PORTD ^= (-(pwmcounter >= selected_pwms[1]) ^ PORTD) & (1 << 3); // D3
   PORTD ^= (-(pwmcounter >= selected_pwms[2]) ^ PORTD) & (1 << 4); // D4
@@ -118,15 +119,15 @@ void loop() {
   pwmcounter += 1;
   
   // Encoder reading logic
-  unsigned char result1 = enc1.process_n(&PINC, 2, 3);
-  unsigned char result2 = enc2.process_n(&PINC, 0, 1);
-  unsigned char result3 = enc3.process_n(&PINB, 4, 5);
+  unsigned char result1 = enc1.process_n(&PINC, 2, 3); // Read from one register the two encoder balues A, B
+  unsigned char result2 = enc2.process_n(&PINC, 0, 1); // next  encoder
+  unsigned char result3 = enc3.process_n(&PINB, 4, 5); // next
   unsigned char result4 = enc4.process_n(&PINB, 2, 3);
 
-  if (result1 == DIR_CW) counter1++;
-    else if (result1 == DIR_CCW) counter1--;
+  if (result1 == DIR_CW) counter1++;      // if the read direction is CLOCK_WISE increment encoder step counter
+    else if (result1 == DIR_CCW) counter1--; // else decrement encoder step counter
 
-  if (result2 == DIR_CW) counter2++;
+  if (result2 == DIR_CW) counter2++;      // nexct encoder
     else if (result2 == DIR_CCW) counter2--;
   
   if (result3 == DIR_CW) counter3++; 
@@ -139,12 +140,13 @@ void loop() {
   unsigned long currentTime = micros();
   float deltaT = (currentTime - lastTime) / 1000000.0; // Time in seconds
 
-  if(deltaT >= 0.05){
+  if(deltaT >= 0.05) { // print in Serial ONLY when Δt = 50ms
     double w1s = getSpeed(counter1, lastCounter1, lastTime1);
     double w2s = getSpeed(counter2, lastCounter2, lastTime2);
     double w3s = getSpeed(counter3, lastCounter3, lastTime3);
     double w4s = getSpeed(counter4, lastCounter4, lastTime4);
 
+    // print motor speeds to Serial
     lastTime = currentTime;
     Serial.print(w1s);
     Serial.print(" ");
