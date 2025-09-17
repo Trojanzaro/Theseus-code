@@ -18,6 +18,13 @@ cam = cv2.VideoCapture(0, cv2.CAP_V4L2)
 frame_width = int(cam.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+# OpenCV objects
+aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+parameters = cv2.aruco.DetectorParameters()
+
+# Create the ArUco detector
+detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+
 # serial communication port connected at pins GPIO14 GPIO15 (Tx,Rx)
 # that are directly connected to the Arduino UNO's pins 0, 1 (Rx,Tx) 
 port = serial.Serial(port="/dev/ttyS0", 
@@ -142,23 +149,18 @@ try:
 
         # Convert the image to grayscale
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
-        parameters = cv2.aruco.DetectorParameters()
-
-        # Create the ArUco detector
-        detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
         
         # Detect the markers
         corners, ids, rejected = detector.detectMarkers(gray)
 
-        # If the fiductial is detected within the threshold value ( -60 < Δx < 60 pixels)
+        #  if detected markers
         if ids is not None:
-
             # calculate distance of fiducial relative to frame
             # (frame_width/2 = middle of the frame)
             distance = (frame_width/2) - corners[0][0][0][0]
 
             # deadzone
+            # If the fiductial is detected within the threshold value ( -60 < Δx < 60 pixels)
             if -60 <= distance <= 60:
                 print("CENTER! d: ", distance)
                 v = [0.0, 0.0, 0.0]
