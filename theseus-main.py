@@ -1,4 +1,5 @@
-import serial, time 
+import serial
+import time 
 import numpy as np
 import csv
 
@@ -6,6 +7,16 @@ import pigpio
 import sonar_trigger_echo
 
 from threading import Thread
+
+import cv2
+import numpy as np
+
+# Open the default camera
+cam = cv2.VideoCapture(0, cv2.CAP_V4L2)
+
+# Get the default frame width and height
+frame_width = int(cam.get(cv2.CAP_PROP_FRAME_WIDTH))
+frame_height = int(cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 # serial communication port connected at pins GPIO14 GPIO15 (Tx,Rx)
 # that are directly connected to the Arduino UNO's pins 0, 1 (Rx,Tx) 
@@ -17,7 +28,7 @@ port = serial.Serial(port="/dev/ttyS0",
 pi = pigpio.pi()
 
 # create sonar HC-SR04 object
-sonar = sonar_trigger_echo.ranger(pi, 23, 18)
+#sonar = sonar_trigger_echo.ranger(pi, 23, 18)
 
 # angular_speeds_thread angular velocites array
 # will be set to the arduino read angular velocities of each motor 0,1,2,3
@@ -77,10 +88,7 @@ try:
     ly = 0.7 # 5 cm + 35/2 mm
 
     # move bool, if true the robot moves forward only [Vy=0.1 cm/s, Vx=0, Ωz=0]
-    move_true = True
-
-    # collider bool, if true it means sonar passed the threashhold distance ~10cm
-    collide_true = False
+    move_true = False
     
     # velocity inverse kinematics [Vy, Vx, Ωz]
     v = [0.1, 0.0, 0.0]
@@ -89,24 +97,8 @@ try:
     while True:
         
         # if the move_true boolean is true, keep the robot walking forward with 10cm/s speed
-        if move_true:
-            v = [0.1, 0.0, 0.0]
-        
-        # continiously monitor rover's distance
-        # if rover distance passes thresshold then change speeds to avoid obstancle
-        if (sonar.read() / 2) / 29.1 <= 11.001 and not collide_true:
-
-            # booleans change for only changing the speeds once
-            collide_true = True
-            move_true = False
-            
-            # turn Counter Clockwise 0.11 rads/s
-            v= [0.0, 0.0, 0.1]
-
-            # start the reset_timeout thread and have it wait for 1.0 seconds  before
-            # it resets the move_true and collide_true booleans
-            move_thread = Thread(target=rese_timeout, args=(1, ), daemon=True)
-            move_thread.start()
+        if not move_true:
+            v = [0.0, 0.0, 0.0]
 
         # INVERSE KINEMATICS
         # Construct the transformation matrix
@@ -141,8 +133,50 @@ try:
         process_variables[1] += control_output_nr *dt*5.2
         process_variables[2] += control_output_sl *dt*5.2
         process_variables[3] += control_output_sr *dt*5.2
-except:
-    sonar.cancel()
+
+        # OPENCV ##########################
+        # OPENCV MARKER DETECTION
+        ret, frame = cam.read()
+        #small = cv2.resize(frame, (640, 480))  
+        image = frame 
+
+        # Convert the image to grayscale
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+        parameters = cv2.aruco.DetectorParameters()
+
+        # Create the ArUco detector
+        detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+        
+        # Detect the markers
+        corners, ids, rejected = detector.detectMarkers(gray)
+
+        # If the fiductial is detected within the threshold value ( -60 < Δx < 60 pixels)
+        if ids is not None:
+
+            # calculate distance of fiducial relative to frame
+            # (frame_width/2 = middle of the frame)
+            distance = (frame_width/2) - corners[0][0][0][0]
+
+            # deadzone
+            if -60 <= distance <= 60:
+                print("CENTER! d: ", distance)
+                v = [0.0, 0.0, 0.0]
+                move_true = False
+            else:
+                # turn to face fiducial
+                move_true = True
+                if distance < 0: # rightwards to the robot
+                    print("RIGHT! d: ", distance)
+                    v = [0.0, 0.0, -0.05] # turn right
+                else: # leftwards to the robot
+                    dt1 = time.time() 
+                    print("LEFT! d: ", distance)
+                    v = [0.0, 0.0, 0.05] # turn left
+        else:
+            v = [0.0, 0.0, 0.0]
+except (KeyboardInterrupt, Exception) as ex:
+    #sonar.cancel()
     pi.stop()
     set_angular_ws([0,0,0,0])
-    print("error, f u")
+    print("error, f u", ex)
