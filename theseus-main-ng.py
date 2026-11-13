@@ -1,5 +1,7 @@
 
 import requests, time, serial, cv2, numpy as np, subprocess, json, wave, pyaudio
+import evdev
+from evdev import InputDevice, ecodes
 
 from babel.dates import format_datetime
 from datetime import datetime
@@ -204,16 +206,61 @@ def speech_recog_controller():
                         reply = res.json()["message"]["content"]
                         generate_words(reply)
                         speak_mouth("123123")
-
-
-
-
     except Exception as e:
         print("Speech recognition error:", e)
     finally:
         stream.stop_stream()
         stream.close()
         p.terminate()
+
+MAX_VEL = 0.2    # Max linear speed (m/s) - adjust to match your robot's safe speed
+MAX_OMEGA = 0.5  # Max rotation speed (rad/s)
+
+# JOYSTICK INPUT
+def HID_controller():
+    dev = next((InputDevice(p) for p in evdev.list_devices() if "F710" in InputDevice(p).name or "Logitech" in InputDevice(p).name), None)
+    if not dev: exit("F710 not found")
+    print('Controller conected')
+
+    state = {"lx": 0.0, "ly": 0.0, "rx": 0.0}
+
+    AXES = {ecodes.ABS_X: "LX", ecodes.ABS_Y: "LY", ecodes.ABS_RX: "RX", ecodes.ABS_RY: "RY"}
+
+    for event in dev.read_loop():
+        # 1. 'B' Button Emergency / Idle Stop
+        if event.type == ecodes.EV_KEY and event.code == ecodes.BTN_B and event.value == 1:
+            state = {"lx": 0.0, "ly": 0.0, "rx": 0.0}
+            robot.stop()
+            print("STOPPED (B pressed)")
+            continue
+
+        if event.type == ecodes.EV_ABS and event.code in AXES:
+            val = round(event.value / 32768.0, 2)
+            if abs(val) < 0.1:  # Ignore center drift
+                val = 0.0
+            
+            #print(f"{AXES[event.code]}: {val}")
+            
+            if event.code == ecodes.ABS_Y:      # Forward / Backward
+                state["ly"] = -val
+            elif event.code == ecodes.ABS_X:    # Strafe Left / Right
+                state["lx"] = -val
+            elif event.code == ecodes.ABS_RX:   # Rotate Left / Right
+                state["rx"] = -val
+            else:
+                continue
+
+            # Map normalized values (-1 to 1) to robot velocities
+            vx = round(state["ly"] * MAX_VEL, 3)
+            vy = round(state["lx"] * MAX_VEL, 3)
+            wz = round(state["rx"] * MAX_OMEGA, 3)
+
+            # Call robot.stop() when sticks are centered so motors fully disengage
+            if vx == 0.0 and vy == 0.0 and wz == 0.0:
+                robot.stop()
+            else:
+                robot.set_velocity(vx, vy, wz)
+
 
 # MAIN
 def main():
@@ -223,7 +270,8 @@ def main():
         Thread(target=serial_reader, args=(port,), daemon=True),
         Thread(target=motor_controller, args=(port,), daemon=True),
         Thread(target=vision_controller, daemon=True),
-        Thread(target=speech_recog_controller, daemon=True)
+        Thread(target=speech_recog_controller, daemon=True),
+        Thread(target=HID_controller, daemon=True)
     ]
 
     try:
@@ -249,4 +297,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
