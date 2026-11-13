@@ -10,3 +10,9 @@ This simple four wheel rover uses mecanum wheels for their omnidirectional abili
 5. [pigpio](https://abyz.me.uk/rpi/pigpio/index.html) library 
 
 <img></img>
+
+dirty hack:
+
+```
+arecord -D hw:4,1,0 -f S16_LE -c 2 -r 48000 | nc -lk -p 8000
+```
