@@ -1,11 +1,11 @@
 
-import requests, time, serial, cv2, numpy as np, subprocess, json, wave, pyaudio
+import re, requests, time, serial, cv2, numpy as np, subprocess, json, wave, pyaudio
 import evdev
 from evdev import InputDevice, ecodes
 
 from babel.dates import format_datetime
 from datetime import datetime
-from gpiozero import Button
+from gpiozero import LED, Button
 
 from dataclasses import dataclass, field
 from threading import Lock, Thread, Event
@@ -16,6 +16,10 @@ DT, KP = 0.05, 5.2
 WHEEL_RADIUS, LX, LY = 0.033, 0.65, 0.7
 CENTER_DEADZONE, TURN_SPEED = 60, 0.01
 CAMERA_INDEX, SERIAL_PORT, BAUDRATE = 0, "/dev/ttyS0", 115200
+OPENCODE_URL = "http://192.168.191.141:4096"
+SESSION_ID = None  # Reuses the same conversation session across commands
+SESSION_DIR = '/home/trojanzaro/DUMMY_DIR'
+AUTH = ("opencode", "12345678")
 
 stop_event = Event()
 #stop_button = Button(17, pull_up=True, bounce_time=0.2)
@@ -29,6 +33,8 @@ class RobotState:
     measured: np.ndarray = field(default_factory=lambda: np.zeros(4))
     output: np.ndarray = field(default_factory=lambda: np.zeros(4))
     stop_requested: bool = False
+    
+    led = LED(27)
 
     def set_velocity(self, vx, vy, wz):
         with self.lock:
@@ -56,6 +62,9 @@ class RobotState:
             else:
                 self.output += (self.setpoint - self.measured) * DT * KP
             return self.output.copy()
+    def LED_state(self):
+        self.led.toggle()
+
 
 
 robot = RobotState()
@@ -137,6 +146,79 @@ def vision_controller():
         robot.stop()
         cam.release()
 
+def ask_opencode(user_text):
+    global SESSION_ID, SESSION_DIR
+
+    # 1. Create a session once
+    if not SESSION_ID:
+        s_res = requests.post(
+            f"{OPENCODE_URL}/api/session",
+            auth=AUTH,
+            json={"title": "Robot"},
+            timeout=10
+        )
+        s_res.raise_for_status()
+        s_data = s_res.json()["data"]
+        SESSION_ID = s_data["id"]
+        SESSION_DIR = s_data["location"]["directory"]
+
+    # 2. Submit the prompt asynchronously and record our user message ID
+    p_res = requests.post(
+        f"{OPENCODE_URL}/api/session/{SESSION_ID}/prompt",
+        params={"directory": SESSION_DIR},
+        json={
+            "agent": "assistant",
+            "text": user_text
+        },
+        auth=AUTH,
+        timeout=15
+    )
+    p_res.raise_for_status()
+    user_msg_id = p_res.json()["data"]["id"]
+
+    # 3. Poll the session messages until the assistant finishes replying (up to 60s)
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        time.sleep(0.5)
+        #print('requesting! ', f'{OPENCODE_URL}/api/session/{SESSION_ID}/message')
+        m_res = requests.get(
+            f"{OPENCODE_URL}/api/session/{SESSION_ID}/message",
+            params={"directory": SESSION_DIR},
+            auth=AUTH,
+            timeout=10
+        )
+        m_res.raise_for_status()
+        msgs = m_res.json().get("data", [])
+
+        # Collect messages newer than our user_msg_id (msgs are ordered newest -> oldest)
+        turn_msgs = []
+        for msg in msgs:
+            if msg.get("id") == user_msg_id:
+                break
+            turn_msgs.append(msg)
+
+        # Wait until OpenCode emits the 'idle' event for this turn
+        is_idle = any(m.get("type") == "idle" for m in turn_msgs)
+        if not is_idle:
+            continue
+
+        # Grab the latest completed assistant message in this turn and extract 'text' from 'content'
+        for msg in turn_msgs:
+            if msg.get("type") == "assistant" and msg.get("time", {}).get("completed"):
+                text_parts = [
+                    block.get("text", "")
+                    for block in msg.get("content", [])
+                    if block.get("type") == "text"
+                ]
+                reply = " ".join(text_parts).strip()
+                if reply:
+                    reply = re.sub(r"[*#_`~]", "", reply)
+                    return reply
+
+        raise RuntimeError(f"Turn finished idle without text reply: {turn_msgs}")
+
+    raise TimeoutError("Timed out waiting for OpenCode assistant reply")
+
 # SPEECH OUTPUT
 def generate_words(text):
     subprocess.run(["espeak", text, "-g", "10", "-v", "en", "-a", "200",
@@ -144,6 +226,9 @@ def generate_words(text):
 
 def speak_mouth(flag):
     filename = "/home/pi/theseus_wav/mouth.wav"
+    if flag == "horn":
+        filename = "/home/pi/theseus_wav/horn.wav"
+
     p = pyaudio.PyAudio()
     try:
         with wave.open(filename, "rb") as wav:
@@ -194,16 +279,13 @@ def speech_recog_controller():
                             time.sleep(1)
                             robot.stop()
                     else:
-                        res = requests.post("http://192.168.191.141:11434/api/chat", json={
-                            "model": "llama3.2:3b",
-                            "messages": [
-                                {"role": "system", "content": "You are a helpful robot. Reply in 1 or 2 short sentences. Use plain spoken English only. Never use markdown, lists, asterisks, or emojis."},
-                                {"role": "user", "content": text}
-                            ],
-                            "options": {"num_predict": 50, "temperature": 0.3},
-                            "stream": False
-                        })
-                        reply = res.json()["message"]["content"]
+                        reply = ''
+                        try:
+                            reply = ask_opencode(text)
+                        except Exception as e:
+                            print(e)
+                            SESSION_ID = None  # Reset session if connection dropped
+                            reply = "Sorry, I could not reach my brain right now."
                         generate_words(reply)
                         speak_mouth("123123")
     except Exception as e:
@@ -233,6 +315,16 @@ def HID_controller():
             robot.stop()
             print("STOPPED (B pressed)")
             continue
+
+        # LIGHT
+        if event.type == ecodes.EV_KEY and event.code == ecodes.BTN_A and event.value == 1:
+            robot.LED_state()
+            continue
+
+        # horn
+        if event.type == ecodes.EV_KEY and event.code == ecodes.BTN_X and event.value == 1:
+            speak_mouth("horn")
+
 
         if event.type == ecodes.EV_ABS and event.code in AXES:
             val = round(event.value / 32768.0, 2)
@@ -287,6 +379,9 @@ def main():
     except KeyboardInterrupt:
         print("Stopping robot...")
     finally:
+        generate_words("shutting down, goodbye")
+        speak_mouth('wer')
+
         robot.stop()
         stop_event.set()
         for t in threads:
