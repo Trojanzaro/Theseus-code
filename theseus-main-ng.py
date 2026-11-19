@@ -1,6 +1,11 @@
 
 import re, requests, time, serial, cv2, numpy as np, subprocess, json, wave, pyaudio
-import evdev
+import evdev, socket, pynmea2, base64, mimetypes, threading
+
+from RPLCD.gpio import CharLCD
+import RPi.GPIO as GPIO
+
+from bigdatacloud import BigDataCloudClient
 from evdev import InputDevice, ecodes
 
 from babel.dates import format_datetime
@@ -17,24 +22,52 @@ WHEEL_RADIUS, LX, LY = 0.033, 0.65, 0.7
 CENTER_DEADZONE, TURN_SPEED = 60, 0.01
 CAMERA_INDEX, SERIAL_PORT, BAUDRATE = 0, "/dev/ttyS0", 115200
 OPENCODE_URL = "http://192.168.191.141:4096"
-SESSION_ID = None  # Reuses the same conversation session across commands
-SESSION_DIR = '/home/trojanzaro/DUMMY_DIR'
+
+SESSION_DIR = "/home/trojanzaro/DUMMY_DIR"
+OPS_SESSION_ID = "ses_robot_ops_static_00000001"
+VISION_SESSION_ID = "ses_robot_vision_static_0001"
+
 AUTH = ("opencode", "12345678")
 
 stop_event = Event()
 #stop_button = Button(17, pull_up=True, bounce_time=0.2)
 
 # ROBOT STATE
+
+# ROBOT STATE
 @dataclass
 class RobotState:
     lock: Lock = field(default_factory=Lock)
+
     velocity: np.ndarray = field(default_factory=lambda: np.zeros(3))
     setpoint: np.ndarray = field(default_factory=lambda: np.zeros(4))
     measured: np.ndarray = field(default_factory=lambda: np.zeros(4))
     output: np.ndarray = field(default_factory=lambda: np.zeros(4))
+
     stop_requested: bool = False
-    
-    led = LED(27)
+
+    lat: float = 0.0
+    lon: float = 0.0
+    location_desc: str = ''
+
+    led: LED = field(init=False)
+    lcd: CharLCD = field(init=False)
+
+    def __post_init__(self):
+        self.led = LED(27)
+
+        self.lcd = CharLCD(
+            numbering_mode=GPIO.BCM,
+            cols=16,
+            rows=2,
+            pin_rs=26,
+            pin_e=19,
+            pins_data=[13, 6, 5, 11],
+            pin_rw=None
+        )
+
+    def get_lcd(self):
+        return self.lcd
 
     def set_velocity(self, vx, vy, wz):
         with self.lock:
@@ -43,7 +76,9 @@ class RobotState:
 
     def stop(self):
         with self.lock:
-            self.velocity[:] = self.setpoint[:] = self.output[:] = 0
+            self.velocity[:] = 0
+            self.setpoint[:] = 0
+            self.output[:] = 0
             self.stop_requested = True
 
     def get_velocity(self):
@@ -57,17 +92,76 @@ class RobotState:
     def update_controller(self, setpoint):
         with self.lock:
             self.setpoint[:] = setpoint
+
             if self.stop_requested:
                 self.output[:] = 0
             else:
                 self.output += (self.setpoint - self.measured) * DT * KP
+
             return self.output.copy()
+
     def LED_state(self):
         self.led.toggle()
 
+    def update_location(self, lat, lon):
+        with self.lock:
+            self.lat = lat
+            self.lon = lon
 
+    def update_location_desc(self):
+        client = BigDataCloudClient(
+            "api-key"
+        )
 
+        place = client.reverse_geocoding.reverse_geocode(
+            self.lat, self.lon
+        )
+
+        with self.lock:
+            self.location_desc = (
+                f"{place.city}, "
+                f"{place.principal_subdivision}, "
+                f"{place.country_name}"
+            )
+
+    def get_location(self):
+        with self.lock:
+            return self.lat, self.lon
+
+    def get_location_desc(self):
+        with self.lock:
+            return self.location_desc
+
+# FRAMESTATE
+class FrameBuffer:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._frame = None
+
+    def update(self, frame):
+        with self._lock:
+            self._frame = frame.copy()
+
+    def get_jpeg_base64(self, max_width=800, quality=80):
+        with self._lock:
+            if self._frame is None:
+                return None
+            frame = self._frame.copy()
+
+        # Resize down for fast local Ollama inference
+        h, w = frame.shape[:2]
+        if w > max_width:
+            scale = max_width / w
+            frame = cv2.resize(frame, (max_width, int(h * scale)))
+
+        ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        if not ok:
+            return None
+        return base64.b64encode(buf.tobytes()).decode("utf-8")
+
+latest_frame = FrameBuffer()
 robot = RobotState()
+
 IK = (1 / WHEEL_RADIUS) * np.array([
     [1, -1, -(LX + LY)], [1, 1, LX + LY],
     [1, 1, -(LX + LY)], [1, -1, LX + LY]
@@ -123,6 +217,9 @@ def vision_controller():
                 K = np.array([[w, 0, w/2], [0, w, h/2], [0, 0, 1]], dtype=np.float32)
 
             frame = cv2.undistort(frame, K, D)
+
+            latest_frame.update(frame)  # <-- Zero disk I/O, ~0.1ms overhead
+
             corners, ids, _ = detector.detectMarkers(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
 
             if ids is None:
@@ -146,43 +243,74 @@ def vision_controller():
         robot.stop()
         cam.release()
 
-def ask_opencode(user_text):
-    global SESSION_ID, SESSION_DIR
+# ask opencode
 
-    # 1. Create a session once
-    if not SESSION_ID:
-        s_res = requests.post(
-            f"{OPENCODE_URL}/api/session",
-            auth=AUTH,
-            json={"title": "Robot"},
-            timeout=10
-        )
-        s_res.raise_for_status()
-        s_data = s_res.json()["data"]
-        SESSION_ID = s_data["id"]
-        SESSION_DIR = s_data["location"]["directory"]
+def ask_opencode(user_text, include_camera=False):
+    print(f"[DEBUG] ask_opencode | user_text={user_text!r} | include_camera={include_camera}")
 
-    # 2. Submit the prompt asynchronously and record our user message ID
-    p_res = requests.post(
-        f"{OPENCODE_URL}/api/session/{SESSION_ID}/prompt",
-        params={"directory": SESSION_DIR},
-        json={
-            "agent": "assistant",
-            "text": user_text
+    if include_camera:
+        b64_img = latest_frame.get_jpeg_base64()
+        print(f"[VISION DEBUG] b64_img len={len(b64_img) if b64_img else 0}")
+
+        if b64_img:
+            try:
+                print(f"[VISION DEBUG] POST -> http://192.168.191.141:11434/v1")
+                v_res = requests.post(
+                    'http://192.168.191.141:11434/api/chat',
+                    json={
+                        "model": "qwen3-vl:latest",
+                        "stream": False,
+                        "think": False,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a helpful robot looking through your camera. Describe or answer what you see in 1 or 2 short sentences. Use plain spoken English only. Never use markdown, lists, asterisks, or emojis."
+                            },
+                            {
+                                "role": "user",
+                                "content": user_text or "What do you see in front of you?",
+                                "images": [b64_img]
+                            }
+                        ]
+                    },
+                    timeout=60
+                )
+                print(f"[VISION DEBUG] status={v_res.status_code}")
+                if not v_res.ok:
+                    print(f"[VISION DEBUG] error={v_res.text}")
+                    v_res.raise_for_status()
+
+                reply = v_res.json()["message"]["content"].strip()
+                print(f"[VISION DEBUG] reply={reply!r}")
+                return reply
+            except Exception as e:
+                print(f"[VISION DEBUG] EXCEPTION: {type(e).__name__}: {e}")
+                raise
+
+    payload = {
+        "agent": "assistant",
+        "model": {
+            "providerID": "ollama",
+            "id": "granite4.2:3b"
         },
+        "text": user_text,
+    }
+
+    p_res = requests.post(
+        f"{OPENCODE_URL}/api/session/{OPS_SESSION_ID}/prompt",
+        params={"directory": SESSION_DIR},
+        json=payload,
         auth=AUTH,
-        timeout=15
+        timeout=30
     )
     p_res.raise_for_status()
     user_msg_id = p_res.json()["data"]["id"]
 
-    # 3. Poll the session messages until the assistant finishes replying (up to 60s)
     deadline = time.time() + 60
     while time.time() < deadline:
-        time.sleep(0.5)
-        #print('requesting! ', f'{OPENCODE_URL}/api/session/{SESSION_ID}/message')
+        time.sleep(0.3)
         m_res = requests.get(
-            f"{OPENCODE_URL}/api/session/{SESSION_ID}/message",
+            f"{OPENCODE_URL}/api/session/{OPS_SESSION_ID}/message",
             params={"directory": SESSION_DIR},
             auth=AUTH,
             timeout=10
@@ -190,32 +318,34 @@ def ask_opencode(user_text):
         m_res.raise_for_status()
         msgs = m_res.json().get("data", [])
 
-        # Collect messages newer than our user_msg_id (msgs are ordered newest -> oldest)
-        turn_msgs = []
-        for msg in msgs:
-            if msg.get("id") == user_msg_id:
-                break
-            turn_msgs.append(msg)
+        user_msg = next((m for m in msgs if m.get("id") == user_msg_id), None)
+        user_created = user_msg.get("time", {}).get("created", 0) if user_msg else 0
+        turn_msgs = [
+            m for m in msgs
+            if m.get("id") != user_msg_id
+            and m.get("time", {}).get("created", 0) >= user_created
+        ]
 
-        # Wait until OpenCode emits the 'idle' event for this turn
         is_idle = any(m.get("type") == "idle" for m in turn_msgs)
-        if not is_idle:
-            continue
+        assistant_msgs = [m for m in turn_msgs if m.get("type") == "assistant"]
 
-        # Grab the latest completed assistant message in this turn and extract 'text' from 'content'
-        for msg in turn_msgs:
-            if msg.get("type") == "assistant" and msg.get("time", {}).get("completed"):
+        for msg in sorted(assistant_msgs, key=lambda x: x.get("time", {}).get("created", 0), reverse=True):
+            if msg.get("error"):
+                raise RuntimeError(f"OpenCode assistant error: {msg['error']}")
+
+            if msg.get("time", {}).get("completed") or is_idle:
                 text_parts = [
                     block.get("text", "")
                     for block in msg.get("content", [])
-                    if block.get("type") == "text"
+                    if block.get("type") == "text" and block.get("text", "").strip()
                 ]
                 reply = " ".join(text_parts).strip()
                 if reply:
                     reply = re.sub(r"[*#_`~]", "", reply)
                     return reply
 
-        raise RuntimeError(f"Turn finished idle without text reply: {turn_msgs}")
+        if is_idle:
+            raise RuntimeError(f"Turn finished idle without text reply: {turn_msgs}")
 
     raise TimeoutError("Timed out waiting for OpenCode assistant reply")
 
@@ -278,7 +408,21 @@ def speech_recog_controller():
                             robot.set_velocity(0, -0.1, 0)
                             time.sleep(1)
                             robot.stop()
+                    elif "where are we" in text:
+                        robot.update_location_desc()
+                        generate_words("we are currently at, location, "+ robot.get_location_desc())
+                        speak_mouth("123123")
+                    elif any(phrase in text.lower() for phrase in ['what can you see', 'what do you see', 'what are we looking at', 'what are you looking at']):
+                        reply = ''
+                        try:
+                            reply = ask_opencode(text, True)
+                            generate_words(reply)
+                            speak_mouth('123')
+                        except Exception as e:
+                            reply = "sorry, my eyes are a bit blurry"
                     else:
+                        robot.get_lcd().clear()
+                        robot.get_lcd().write_string(text)
                         reply = ''
                         try:
                             reply = ask_opencode(text)
@@ -288,12 +432,30 @@ def speech_recog_controller():
                             reply = "Sorry, I could not reach my brain right now."
                         generate_words(reply)
                         speak_mouth("123123")
+                        robot.get_lcd().write_string(reply)
     except Exception as e:
         print("Speech recognition error:", e)
     finally:
         stream.stop_stream()
         stream.close()
         p.terminate()
+
+# ANDROID GNSS
+
+def location_controller():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect(('127.0.0.1', 10110))
+
+    with sock.makefile('r') as stream:
+        for line in stream:
+            if line.startswith('$'):
+                try:
+                    msg = pynmea2.parse(line)
+                    if hasattr(msg, 'latitude') and msg.latitude:
+                        robot.update_location(msg.latitude, msg.longitude)
+                        #print(f"Lat: {msg.latitude}, Lon: {msg.longitude}, Sats: {getattr(msg, 'num_sats', 'N/A')}")
+                except pynmea2.ParseError:
+                    continue
 
 MAX_VEL = 0.2    # Max linear speed (m/s) - adjust to match your robot's safe speed
 MAX_OMEGA = 0.5  # Max rotation speed (rad/s)
@@ -326,6 +488,9 @@ def HID_controller():
             speak_mouth("horn")
 
 
+        # Y button image
+
+
         if event.type == ecodes.EV_ABS and event.code in AXES:
             val = round(event.value / 32768.0, 2)
             if abs(val) < 0.1:  # Ignore center drift
@@ -356,6 +521,8 @@ def HID_controller():
 
 # MAIN
 def main():
+    robot.get_lcd().write_string("Hello! I am Theseus")
+
     stop_button = Button(17, pull_up=True, bounce_time=0.2)
     port = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0.1, write_timeout=0.1)
     threads = [
@@ -363,7 +530,8 @@ def main():
         Thread(target=motor_controller, args=(port,), daemon=True),
         Thread(target=vision_controller, daemon=True),
         Thread(target=speech_recog_controller, daemon=True),
-        Thread(target=HID_controller, daemon=True)
+        Thread(target=HID_controller, daemon=True),
+        Thread(target=location_controller, daemon=True)
     ]
 
     try:
@@ -379,9 +547,26 @@ def main():
     except KeyboardInterrupt:
         print("Stopping robot...")
     finally:
+        robot.get_lcd().clear()
+        robot.get_lcd().write_string("Shutting down!")
+        robot.get_lcd().cursor_pos = (1, 0)
+        robot.get_lcd().write_string("Good bye <3")
+                
         generate_words("shutting down, goodbye")
         speak_mouth('wer')
 
+        time.sleep(1.5)
+
+        robot.get_lcd().clear()
+        GPIO.cleanup([26, 19, 13, 6, 5, 11, 27])
+        
+        try:
+
+            robot.lcd.close(clear=True)
+        
+            robot.led.close()
+        except Exception as e:
+            pass
         robot.stop()
         stop_event.set()
         for t in threads:
